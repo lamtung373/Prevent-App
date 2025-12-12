@@ -54,12 +54,6 @@ class Config:
         """Lấy giá trị từ environment variable."""
         return os.getenv(key, default)
     
-    # GitHub
-    @property
-    def github_token(self) -> Optional[str]:
-        """GitHub token cho private repo."""
-        return self._get_env("GITHUB_TOKEN")
-    
     # Site 1 - Preventlistview
     @property
     def site1_username(self) -> str:

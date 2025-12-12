@@ -47,28 +47,6 @@ class UpdateManager:
         self.download_progress = 0
         self._lock = threading.Lock()
         self._logger = _update_logger
-        
-    def _get_github_token(self) -> Optional[str]:
-        """Lấy GitHub token từ biến môi trường hoặc file .env."""
-        token = os.getenv("GITHUB_TOKEN")
-        if token:
-            return token.strip()
-        
-        try:
-            root_dir = self.version_file.parent.parent
-            env_file = root_dir / ".env"
-            if env_file.exists():
-                with open(env_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("GITHUB_TOKEN="):
-                            token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                            if token:
-                                return token
-        except Exception:
-            pass
-        
-        return None
 
     def load_version_info(self) -> dict:
         """Đọc thông tin version hiện tại."""
@@ -137,16 +115,9 @@ class UpdateManager:
                 return None
 
             try:
-                # Chuẩn bị header nếu có token (hỗ trợ repo private)
-                token = self._get_github_token()
-                headers = {}
-                if token:
-                    headers["Authorization"] = f"Bearer {token}"
-                    headers["Accept"] = "application/vnd.github+json"
-
                 # Gọi GitHub API với timeout 10 giây
                 api_url = f"https://api.github.com/repos/{github_repo}/releases/latest"
-                response = requests.get(api_url, headers=headers, timeout=10)
+                response = requests.get(api_url, timeout=10)
 
                 if response.status_code == 200:
                     release_data = response.json()
@@ -165,17 +136,8 @@ class UpdateManager:
                                 break
 
                         if zip_asset:
-                            # Sử dụng API endpoint cho private repo thay vì browser_download_url
                             asset_id = zip_asset.get("id")
-                            asset_url = zip_asset.get("url")  # API endpoint
-                            browser_url = zip_asset.get("browser_download_url")  # Fallback cho public repo
-                            
-                            # Ưu tiên dùng API endpoint nếu có token (private repo)
-                            token = self._get_github_token()
-                            if token and asset_url:
-                                download_url = asset_url
-                            else:
-                                download_url = browser_url
+                            download_url = zip_asset.get("browser_download_url")
                             
                             self._logger.info(f"Phát hiện phiên bản mới: {tag_name}")
                             return {
@@ -194,10 +156,10 @@ class UpdateManager:
                     self._logger.error("Repo không tồn tại hoặc không có releases (404)")
                     return None
                 elif response.status_code == 401:
-                    self._logger.error("Unauthorized (401) - Token không hợp lệ hoặc thiếu quyền")
+                    self._logger.error("Unauthorized (401) - Không có quyền truy cập")
                     return None
                 elif response.status_code == 403:
-                    self._logger.error("Forbidden (403) - Token thiếu quyền hoặc rate limit")
+                    self._logger.error("Forbidden (403) - Không có quyền truy cập hoặc rate limit")
                     return None
                 else:
                     self._logger.error(f"Lỗi API: Status {response.status_code}, Response: {response.text[:200]}")
@@ -248,22 +210,8 @@ class UpdateManager:
             
             zip_path = updates_dir / f"update_{int(time.time())}.zip"
 
-            # Chuẩn bị header cho download asset
-            token = self._get_github_token()
-            headers = {}
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-            
-            # Kiểm tra xem đây có phải API endpoint không (private repo)
-            if "api.github.com" in download_url and "/releases/assets/" in download_url:
-                # API endpoint cần Accept header đặc biệt để download binary
-                headers["Accept"] = "application/octet-stream"
-            else:
-                # Browser download URL (public repo)
-                headers["Accept"] = "application/vnd.github+json"
-
             # Tải file với progress
-            response = requests.get(download_url, headers=headers, stream=True, timeout=60)
+            response = requests.get(download_url, stream=True, timeout=60)
             
             if response.status_code != 200:
                 self._logger.error(f"Lỗi tải file: HTTP {response.status_code}")

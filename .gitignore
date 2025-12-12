@@ -1,0 +1,38 @@
+# Python cache/venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+env/
+venv/
+.venv/
+
+# Logs & temp artifacts
+*.log
+*.tmp
+*.temp
+*.bak
+*.zip
+*.gz
+*.tar
+*.tar.gz
+*.har
+*.png
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Backup / generated
+app_backup/
+_updates/
+update_backup/
+
+# Secrets
+.env
+

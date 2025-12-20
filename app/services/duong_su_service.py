@@ -1,6 +1,5 @@
-"""Service tra cứu biển số xe trên các trang web."""
+"""Service tra cứu đương sự trên các trang web."""
 
-import re
 import time
 from typing import Optional
 from urllib.parse import quote_plus
@@ -15,8 +14,8 @@ from core.logging_utils import log
 from core.shared_utils import find_first_element, quick_find_login_fields
 
 
-class BienSoService:
-    """Service xử lý tra cứu biển số xe."""
+class DuongSuService:
+    """Service xử lý tra cứu đương sự bằng số căn cước công dân."""
     
     def __init__(self, automation: WebAutomation):
         """
@@ -28,12 +27,12 @@ class BienSoService:
         self.automation = automation
 
     # --- Site 1: preventlistview ---
-    def search_site1(self, plate: str):
+    def search_site1(self, so_can_cuoc: str):
         """
-        Tra cứu biển số trên preventlistview (Site 1).
+        Tra cứu đương sự bằng số căn cước trên preventlistview (Site 1).
         
         Args:
-            plate: Biển số xe cần tra cứu
+            so_can_cuoc: Số căn cước công dân hoặc số căn cước
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
@@ -49,86 +48,21 @@ class BienSoService:
             )
             self.automation.search_license_plate(
                 search_url=config.site1_search_url,
-                license_plate=plate,
+                license_plate=so_can_cuoc,
                 search_selector=site1_selectors["search"],
                 submit_selector=site1_selectors["submit"],
                 page_name=page_name,
-                input_type="biển số",
+                input_type="số căn cước",
             )
         except Exception as exc:
-            log.error("[Lỗi] Trang 1: Lỗi khi tra cứu biển số: %s", exc)
-    
-    @staticmethod
-    def _split_plate_site2(plate: str):
-        """Tách biển số thành P1 (phần trước) và P2 (phần sau) theo yêu cầu trang 2."""
-        plate = plate.strip().upper()
-        if "-" in plate:
-            prefix, suffix = plate.split("-", 1)
-        else:
-            parts = plate.split()
-            prefix = parts[0] if parts else plate
-            suffix = parts[1] if len(parts) > 1 else ""
+            log.error("[Lỗi] Trang 1: Lỗi khi tra cứu đương sự: %s", exc)
 
-        def build_prefix(value: str) -> str:
-            groups = re.findall(r"[A-Z]+|\d+", value)
-            if not groups:
-                return f"%{value}%"
-            return "%" + "%".join(groups) + "%"
-
-        def build_suffix(value: str) -> str:
-            if not value:
-                return "%"
-            # Nếu có dấu chấm, tách theo dấu chấm
-            if "." in value:
-                parts = value.split(".")
-                # Loại bỏ ký tự không phải chữ/số và lọc phần rỗng
-                groups = [re.sub(r"[^A-Z0-9]", "", part) for part in parts if part.strip()]
-                if not groups:
-                    return "%"
-                return "%" + "%".join(groups) + "%"
-            # Nếu không có dấu chấm, xử lý như cũ
-            clean = re.sub(r"[^A-Z0-9]", "", value)
-            if not clean:
-                return "%"
-            if len(clean) > 3:
-                groups = [clean[:3], clean[3:]]
-            else:
-                groups = [clean]
-            return "%" + "%".join(groups) + "%"
-
-        p1 = build_prefix(prefix)
-        p2 = build_suffix(suffix)
-        return p1, p2
-
-    @staticmethod
-    def _format_plate_site3(plate: str) -> str:
-        """Định dạng biển số cho ô 'so_dk' trang hcm.cenm.vn (Site 3)."""
-        plate = plate.strip().upper()
-        if "-" in plate:
-            prefix, suffix = plate.split("-", 1)
-        else:
-            parts = plate.split()
-            prefix = parts[0] if parts else plate
-            suffix = parts[1] if len(parts) > 1 else ""
-
-        prefix_groups = re.findall(r"[A-Z]+|\d+", prefix) or [prefix]
-
-        clean_suffix = re.sub(r"[^A-Z0-9]", "", suffix)
-        if clean_suffix:
-            suffix_groups = [clean_suffix[:3], clean_suffix[3:]] if len(clean_suffix) > 3 else [clean_suffix]
-            suffix_groups = [g for g in suffix_groups if g]
-        else:
-            suffix_groups = []
-
-        segments = prefix_groups + suffix_groups
-        return f"%{'%'.join(segments)}%"
-
-    def search_site2(self, plate: str):
+    # --- Site 2: 210.245.111.1/dsnc ---
+    def search_site2(self, so_can_cuoc: str):
         """
-        Tra cứu trên trang: http://210.245.111.1/dsnc/Default.aspx.
+        Tra cứu đương sự trên trang: http://210.245.111.1/dsnc/Default.aspx.
         
-        Args:
-            plate: Biển số xe cần tra cứu
+        Chọn radio button rblTableType_2, nhập số căn cước vào txtP2, rồi submit.
         """
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
@@ -144,22 +78,21 @@ class BienSoService:
                 page_name=page_name,
             )
 
+            # Chọn radio button rblTableType_2 (đương sự)
             try:
-                radio_ds = self.automation.wait.until(EC.element_to_be_clickable((By.ID, "rblTableType_1")))
-                radio_ds.click()
+                radio_duong_su = self.automation.wait.until(EC.element_to_be_clickable((By.ID, "rblTableType_2")))
+                radio_duong_su.click()
             except Exception:
                 pass
 
-            p1, p2 = self._split_plate_site2(plate)
-            log.info("Đang nhập biển số: %s (P1: %s, P2: %s)", plate, p1, p2)
+            log.info("Đang nhập số căn cước: %s", so_can_cuoc)
 
-            p1_field = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtP1")))
+            # Nhập số căn cước vào txtP2
             p2_field = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtP2")))
-            p1_field.clear()
-            p1_field.send_keys(p1)
             p2_field.clear()
-            p2_field.send_keys(p2)
+            p2_field.send_keys(so_can_cuoc)
 
+            # Submit form
             try:
                 btn_search = self.automation.wait.until(EC.element_to_be_clickable((By.ID, "Button1")))
                 btn_search.click()
@@ -168,16 +101,14 @@ class BienSoService:
 
             log.info("Đã tra cứu trang: %s", page_name)
         except Exception as exc:
-            log.error("[Lỗi] Trang 2: Lỗi khi tra cứu: %s", exc)
+            log.error("[Lỗi] Trang 2: Lỗi khi tra cứu đương sự: %s", exc)
 
-    def search_site3(self, plate: str):
+    # --- Site 3: hcm.cenm.vn ---
+    def search_site3(self, so_can_cuoc: str):
         """
-        Tra cứu trên trang: https://hcm.cenm.vn/ (Trang 3)
+        Tra cứu đương sự trên trang: https://hcm.cenm.vn/ (Trang 3)
         
-        Chuẩn bị tra cứu: login -> mở mục Tài sản.
-        
-        Args:
-            plate: Biển số xe cần tra cứu
+        Chuẩn bị tra cứu: login -> mở mục Đương sự -> nhập số căn cước vào so_cmt.
         """
         page_name = "hcm.cenm.vn"
         try:
@@ -246,6 +177,7 @@ class BienSoService:
                 except Exception:
                     pass
 
+            # Chọn menu tra cứu
             try:
                 menu_tracuu = self.automation.wait.until(
                     EC.element_to_be_clickable((By.CSS_SELECTOR, "#barC_pcctim, td[onclick*=\"pcctim\"]"))
@@ -258,18 +190,20 @@ class BienSoService:
             except Exception:
                 pass
 
+            # Chọn menu Đương sự (thay vì Tài sản)
             try:
-                menu_ts = self.automation.wait.until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "#barP_pcctim_ts, span#barP_pcctim_ts"))
+                menu_duong_su = self.automation.wait.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "#barP_pcctim_ds, span#barP_pcctim_ds"))
                 )
-                self.automation.driver.execute_script("arguments[0].scrollIntoView(true);", menu_ts)
+                self.automation.driver.execute_script("arguments[0].scrollIntoView(true);", menu_duong_su)
                 try:
-                    menu_ts.click()
+                    menu_duong_su.click()
                 except Exception:
-                    self.automation.driver.execute_script("arguments[0].click();", menu_ts)
+                    self.automation.driver.execute_script("arguments[0].click();", menu_duong_su)
             except Exception:
                 pass
 
+            # Chờ tab mới mở và chuyển sang tab đó
             try:
                 handles_before = self.automation.driver.window_handles
                 try:
@@ -281,9 +215,12 @@ class BienSoService:
                 if len(handles_after) > len(handles_before):
                     self.automation.driver.switch_to.window(handles_after[-1])
 
-                target_url = "https://hcm.cenm.vn/App_form/pccts/pccts_tim.aspx"
-                if "pccts_tim.aspx" not in self.automation.driver.current_url:
+                # URL có thể là pccds_tim.aspx hoặc tương tự cho đương sự
+                # Nếu không tự động mở, thử điều hướng đến URL tra cứu đương sự
+                if "pccds" not in self.automation.driver.current_url and "pcctim" not in self.automation.driver.current_url:
                     try:
+                        # Thử URL tra cứu đương sự (có thể cần điều chỉnh)
+                        target_url = "https://hcm.cenm.vn/App_form/pccds/pccds_tim.aspx"
                         self.automation.driver.get(target_url)
                     except Exception:
                         pass
@@ -292,44 +229,23 @@ class BienSoService:
             except Exception:
                 pass
 
-            # Chọn option "Phương tiện" (value='P') trong select dropdown (chỉ cho tra cứu biển số)
+            # Nhập số căn cước vào ô so_cmt
             try:
-                select_option = self.automation.wait.until(
-                    EC.presence_of_element_located(
-                        (By.XPATH, "//select[@id='ctl00_ContentPlaceHolder1_nhom']/option[@value='P'] | //option[@value='P']")
-                    )
-                )
-                try:
-                    self.automation.driver.execute_script(
-                        "arguments[0].selected = true; "
-                        "if (arguments[0].parentElement) arguments[0].parentElement.dispatchEvent(new Event('change'));",
-                        select_option,
-                    )
-                except Exception:
-                    pass
-                try:
-                    select_option.click()
-                except Exception:
-                    pass
-            except Exception:
-                pass
-
-            try:
-                plate_formatted = self._format_plate_site3(plate)
-                log.info("Đang nhập biển số: %s (đã format: %s)", plate, plate_formatted)
-                so_dk_field = self.automation.wait.until(
+                log.info("Đang nhập số căn cước: %s", so_can_cuoc)
+                so_cmt_field = self.automation.wait.until(
                     EC.presence_of_element_located(
                         (
                             By.CSS_SELECTOR,
-                            "input#ctl00_ContentPlaceHolder1_so_dk, input[name='ctl00$ContentPlaceHolder1$so_dk']",
+                            "input#ctl00_ContentPlaceHolder1_so_cmt, input[name='ctl00$ContentPlaceHolder1$so_cmt']",
                         )
                     )
                 )
-                so_dk_field.clear()
-                so_dk_field.send_keys(plate_formatted)
+                so_cmt_field.clear()
+                so_cmt_field.send_keys(so_can_cuoc)
 
+                # Click nút tìm
                 try:
-                    btn_search = self.automation.wait.until(
+                    btn_tim = self.automation.wait.until(
                         EC.element_to_be_clickable(
                             (
                                 By.CSS_SELECTOR,
@@ -338,27 +254,25 @@ class BienSoService:
                         )
                     )
                     try:
-                        btn_search.click()
+                        btn_tim.click()
                     except Exception:
-                        self.automation.driver.execute_script("arguments[0].click();", btn_search)
+                        self.automation.driver.execute_script("arguments[0].click();", btn_tim)
                 except Exception:
-                    so_dk_field.send_keys(Keys.RETURN)
+                    so_cmt_field.send_keys(Keys.RETURN)
 
                 log.info("Đã tra cứu trang: %s", page_name)
             except Exception as exc:
-                log.error("[Lỗi] Trang 3: Lỗi khi tra cứu: %s", exc)
+                log.error("[Lỗi] Trang 3: Lỗi khi tra cứu đương sự: %s", exc)
         except Exception as exc:
             log.error("[Lỗi] Trang 3: Lỗi khi đăng nhập: %s", exc)
 
-    def search_site4(self, plate: str):
+    # --- Site 4: 14.161.50.224 ---
+    def search_site4(self, so_can_cuoc: str):
         """
-        Tra cứu trên trang: http://14.161.50.224/dang-nhap/ (Trang 4)
+        Tra cứu đương sự trên trang: http://14.161.50.224/dang-nhap/ (Trang 4)
         
         Sau khi đăng nhập, điều hướng trực tiếp đến URL với tham số:
-        http://14.161.50.224/tra-cuu/?option3=1&keyword={plate}
-        
-        Args:
-            plate: Biển số xe cần tra cứu
+        http://14.161.50.224/tra-cuu/?option2=1&keyword={so_can_cuoc}
         """
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
@@ -377,9 +291,9 @@ class BienSoService:
             # Đợi một chút để đảm bảo đăng nhập hoàn tất
             time.sleep(0.5)
 
-            # Điều hướng trực tiếp đến URL tra cứu với tham số option3 và keyword
-            search_url = f"http://14.161.50.224/tra-cuu/?option3=1&keyword={quote_plus(plate)}"
-            log.info("Đang tra cứu biển số: %s", plate)
+            # Điều hướng trực tiếp đến URL tra cứu với tham số option2 và keyword
+            search_url = f"http://14.161.50.224/tra-cuu/?option2=1&keyword={quote_plus(so_can_cuoc)}"
+            log.info("Đang tra cứu số căn cước: %s", so_can_cuoc)
             log.info("Điều hướng đến: %s", search_url)
             self.automation.driver.get(search_url)
 
@@ -388,5 +302,5 @@ class BienSoService:
 
             log.info("Đã tra cứu trang: %s", page_name)
         except Exception as exc:
-            log.error("[Lỗi] Trang 4: Lỗi khi tra cứu: %s", exc)
+            log.error("[Lỗi] Trang 4: Lỗi khi tra cứu đương sự: %s", exc)
 

@@ -41,8 +41,14 @@ class SoHongService:
 
     # --- Site 1: preventlistview ---
     def search_site1(self, seri_so: str):
-        """Tra cứu seri sổ hồng trên preventlistview (Site 1)."""
+        """
+        Tra cứu seri sổ hồng trên preventlistview (Site 1).
+        
+        Args:
+            seri_so: Số seri sổ hồng cần tra cứu
+        """
         site1_selectors = config.site1_selectors
+        page_name = "115.79.139.172:8080/stp/preventlistview.do"
         try:
             self.automation.login(
                 url=config.site1_search_url,
@@ -51,14 +57,14 @@ class SoHongService:
                 username_selector=site1_selectors["username"],
                 password_selector=site1_selectors["password"],
                 login_button_selector=site1_selectors["login_button"],
-                page_name="115.79.139.172:8080/stp/preventlistview.do",
+                page_name=page_name,
             )
             self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=seri_so,
                 search_selector=site1_selectors["search"],
                 submit_selector=site1_selectors["submit"],
-                page_name="115.79.139.172:8080/stp/preventlistview.do",
+                page_name=page_name,
                 input_type="số seri sổ",
             )
         except Exception as exc:
@@ -69,6 +75,11 @@ class SoHongService:
         Tra cứu sổ hồng trên trang 210.245.111.1/dsnc với ô Thửa đất + Tờ bản đồ.
 
         Yêu cầu: điền chuỗi dạng %<giá trị>% cho cả 2 ô nếu có giá trị.
+        
+        Args:
+            thua_dat_so: Thửa đất số
+            to_ban_do_so: Tờ bản đồ số
+            seri_so: Số seri sổ hồng (optional, không dùng trong tra cứu này)
         """
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
@@ -149,6 +160,9 @@ class SoHongService:
         Tra cứu sổ hồng trên trang: https://hcm.cenm.vn/ (Trang 3)
         
         Tra cứu bằng trường 'seri' với format %AA%123456%.
+        
+        Args:
+            seri_so: Số seri sổ hồng cần tra cứu
         """
         page_name = "hcm.cenm.vn"
         try:
@@ -295,6 +309,9 @@ class SoHongService:
         
         Sau khi đăng nhập, điều hướng trực tiếp đến URL với tham số:
         http://14.161.50.224/tra-cuu/?option3=1&keyword={seri_so}
+        
+        Args:
+            seri_so: Số seri sổ hồng cần tra cứu
         """
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"

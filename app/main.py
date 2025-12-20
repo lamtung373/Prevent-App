@@ -93,6 +93,7 @@ def print_menu():
     print()
     print("  [1] Biển số xe")
     print("  [2] Sổ hồng")
+    print("  [3] Đương sự")
     print()
 
 
@@ -100,11 +101,11 @@ def get_user_choice() -> Optional[str]:
     """Lấy lựa chọn từ người dùng."""
     while True:
         try:
-            choice = input("Nhập lựa chọn (1/2): ").strip()
-            if choice in ("1", "2"):
+            choice = input("Nhập lựa chọn (1/2/3): ").strip()
+            if choice in ("1", "2", "3"):
                 return choice
             print()
-            print("[LỖI] Lựa chọn không hợp lệ. Vui lòng chọn 1 hoặc 2.")
+            print("[LỖI] Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 3.")
             print()
         except (EOFError, KeyboardInterrupt):
             return None
@@ -113,7 +114,7 @@ def get_user_choice() -> Optional[str]:
 def get_bien_so_input() -> Optional[str]:
     """Lấy biển số xe từ người dùng."""
     try:
-        bien_so = input("Nhập biển số xe (ví dụ: 30A-12345): ").strip()
+        bien_so = input("Nhập biển số xe (ví dụ: 30A-123.45): ").strip()
         if not bien_so:
             print()
             print("[LỖI] Biển số không được để trống!")
@@ -138,6 +139,19 @@ def get_so_hong_input() -> Tuple[Optional[str], Optional[str], Optional[str]]:
         return seri_so, thua_dat, to_ban_do
     except (EOFError, KeyboardInterrupt):
         return None, None, None
+
+
+def get_so_can_cuoc_input() -> Optional[str]:
+    """Lấy số căn cước từ người dùng."""
+    try:
+        so_can_cuoc = input("Nhập số Căn cước công dân hoặc số Căn cước: ").strip()
+        if not so_can_cuoc:
+            print()
+            print("[LỖI] Số căn cước không được để trống!")
+            return None
+        return so_can_cuoc
+    except (EOFError, KeyboardInterrupt):
+        return None
 
 
 def run_tra_cuu_bien_so(bien_so: str) -> int:
@@ -173,6 +187,21 @@ def run_tra_cuu_so_hong(seri_so: str, thua_dat: Optional[str], to_ban_do: Option
         return result.returncode
     except Exception as exc:
         log.error("[LỖI] Lỗi khi chạy tra cứu sổ hồng: %s", exc)
+        return 1
+
+
+def run_tra_cuu_duong_su(so_can_cuoc: str) -> int:
+    """Chạy tra cứu đương sự."""
+    script_path = app_dir / "tra_cuu_duong_su.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script_path), so_can_cuoc],
+            cwd=str(app_dir.parent),
+            encoding='utf-8'
+        )
+        return result.returncode
+    except Exception as exc:
+        log.error("[LỖI] Lỗi khi chạy tra cứu đương sự: %s", exc)
         return 1
 
 
@@ -246,9 +275,12 @@ def main():
     if user_choice == "1":
         script_name = "Biển số xe"
         input_prompt = "Biển số xe"
-    else:
+    elif user_choice == "2":
         script_name = "Sổ hồng"
         input_prompt = "Số seri sổ"
+    else:
+        script_name = "Đương sự"
+        input_prompt = "Số căn cước"
     
     # Bước 3: Nhập thông tin tra cứu
     print()
@@ -263,9 +295,15 @@ def main():
             print()
             input("Nhấn Enter để thoát...")
             return 1
-    else:
+    elif user_choice == "2":
         seri_so, thua_dat, to_ban_do = get_so_hong_input()
         if not seri_so:
+            print()
+            input("Nhấn Enter để thoát...")
+            return 1
+    else:
+        so_can_cuoc = get_so_can_cuoc_input()
+        if not so_can_cuoc:
             print()
             input("Nhấn Enter để thoát...")
             return 1
@@ -279,8 +317,10 @@ def main():
     
     if user_choice == "1":
         tracuu_exitcode = run_tra_cuu_bien_so(bien_so)
-    else:
+    elif user_choice == "2":
         tracuu_exitcode = run_tra_cuu_so_hong(seri_so, thua_dat, to_ban_do)
+    else:
+        tracuu_exitcode = run_tra_cuu_duong_su(so_can_cuoc)
     
     # Bước 5: Kiểm tra và cài đặt update
     print()

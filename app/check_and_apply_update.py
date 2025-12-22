@@ -41,7 +41,7 @@ def main():
             log.info("[Update] Có cập nhật đã tải sẵn, đang cài đặt...")
             success = update_manager.apply_update_on_exit(app_dir=str(app_dir))
             if success:
-                log.info("[Update] Cài đặt cập nhật thành công")
+                # Không log lại "Cài đặt cập nhật thành công" vì install_update() đã log rồi
                 if update_manager.latest_version:
                     log.info(f"[Update] Phiên bản mới: {update_manager.latest_version}")
                 return 0
@@ -83,7 +83,7 @@ def main():
         success = update_manager.install_update(zip_path, app_dir=str(app_dir))
         
         if success:
-            log.info("[Update] Cài đặt cập nhật thành công")
+            # Không log lại "Cài đặt cập nhật thành công" vì install_update() đã log rồi
             log.info(f"[Update] Phiên bản mới: {latest_version}")
             return 0
         else:

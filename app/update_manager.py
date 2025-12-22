@@ -97,6 +97,34 @@ class UpdateManager:
         except Exception:
             return False
 
+    def _get_latest_version_silent(self) -> Optional[str]:
+        """
+        Lấy version mới nhất từ GitHub mà không log (dùng cho internal).
+        
+        Returns:
+            Version string nếu thành công, None nếu lỗi
+        """
+        try:
+            version_info = self.load_version_info()
+            github_repo = version_info.get("github_repo", "").strip()
+
+            if not github_repo or github_repo == "owner/repo-name":
+                return None
+
+            try:
+                api_url = f"https://api.github.com/repos/{github_repo}/releases/latest"
+                response = requests.get(api_url, timeout=10)
+
+                if response.status_code == 200:
+                    release_data = response.json()
+                    tag_name = release_data.get("tag_name", "")
+                    return tag_name.lstrip("vV") if tag_name else None
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return None
+
     def check_update(self) -> Optional[dict]:
         """
         Kiểm tra update từ GitHub Releases API.
@@ -303,9 +331,16 @@ class UpdateManager:
             version_info = self.load_version_info()
             if self.latest_version:
                 old_version = version_info.get("version", "unknown")
-                version_info["version"] = self.latest_version.lstrip("vV")
-                self.save_version_info(version_info)
-                self._logger.info(f"Cập nhật phiên bản: {old_version} -> {version_info['version']}")
+                new_version = self.latest_version.lstrip("vV")
+                # Chỉ log khi có thay đổi phiên bản thực sự
+                if old_version != new_version:
+                    version_info["version"] = new_version
+                    self.save_version_info(version_info)
+                    self._logger.info(f"Cập nhật phiên bản: {old_version} -> {new_version}")
+                else:
+                    # Vẫn cập nhật version_info để đảm bảo đồng bộ, nhưng không log
+                    version_info["version"] = new_version
+                    self.save_version_info(version_info)
 
             if backup_root.exists():
                 try:
@@ -380,7 +415,7 @@ class UpdateManager:
             update_info = self.check_update()
             if update_info:
                 self.latest_version = update_info["version"]
-                self._logger.info(f"Phát hiện phiên bản mới: {self.latest_version}")
+                # Không log lại vì check_update() đã log rồi
                 if self.callback:
                     self.callback("downloading", 0, f"Đang tải cập nhật {self.latest_version}...")
 
@@ -395,7 +430,8 @@ class UpdateManager:
                         with self._lock:
                             self.update_zip_path = zip_path
                             self.update_ready = True
-                        self._logger.info("Cập nhật đã sẵn sàng để áp dụng")
+                        # Chỉ log một lần, không log từ callback để tránh trùng lặp
+                        self._logger.info(f"Cập nhật {self.latest_version} sẵn sàng")
                         if self.callback:
                             self.callback("ready", 100, f"Cập nhật {self.latest_version} sẵn sàng")
                     else:
@@ -453,13 +489,13 @@ class UpdateManager:
                             self.update_zip_path = str(latest_zip)
                             self.update_ready = True
                             
-                            # Lấy version từ GitHub nếu chưa có
+                            # Lấy version từ GitHub nếu chưa có (không log để tránh trùng lặp)
                             if not self.latest_version:
                                 try:
-                                    update_info = self.check_update()
-                                    if update_info:
-                                        self.latest_version = update_info.get("version", "")
-                                        self._logger.info(f"Đã lấy version từ GitHub: {self.latest_version}")
+                                    # Dùng method silent để lấy version mà không log
+                                    version = self._get_latest_version_silent()
+                                    if version:
+                                        self.latest_version = version
                                 except Exception as e:
                                     self._logger.debug(f"Không thể lấy version từ GitHub: {e}")
                             

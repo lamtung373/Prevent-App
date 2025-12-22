@@ -30,7 +30,8 @@ def init_update_manager(callback: Optional[Callable[[str, int, str], None]] = No
         
         def default_callback(status: str, progress: int, message: str):
             """Callback mặc định chỉ log các trạng thái chính."""
-            if status in ("ready", "error"):
+            # Không log "ready" vì UpdateManager đã log rồi, chỉ log "error"
+            if status == "error":
                 log.info("[Update] %s", message)
         
         update_callback = callback or default_callback

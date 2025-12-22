@@ -40,32 +40,108 @@ def check_python() -> bool:
 
 
 def check_and_install_libraries(req_file: Path) -> bool:
-    """Kiểm tra và cài đặt thư viện nếu thiếu."""
+    """Kiểm tra và cài đặt tất cả thư viện từ requirements.txt nếu thiếu."""
+    if not req_file.exists():
+        log.error("[LỖI] Không tìm thấy file requirements.txt!")
+        return False
+    
+    # Đọc danh sách thư viện từ requirements.txt
+    required_libraries = []
     try:
-        # Kiểm tra selenium
-        import selenium
-        log.info("[OK] Thư viện đã sẵn sàng")
+        with open(req_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # Bỏ qua dòng trống và comment
+                if not line or line.startswith("#"):
+                    continue
+                # Lấy tên thư viện (bỏ phần version nếu có)
+                # Ví dụ: "selenium>=4.15.0" -> "selenium"
+                lib_name = line.split(">=")[0].split("==")[0].split(">")[0].split("<")[0].split("!")[0].strip()
+                if lib_name:
+                    required_libraries.append(lib_name)
+    except Exception as e:
+        log.error("[LỖI] Không thể đọc file requirements.txt: %s", e)
+        return False
+    
+    if not required_libraries:
+        log.warning("[CẢNH BÁO] Không tìm thấy thư viện nào trong requirements.txt")
         return True
-    except ImportError:
-        log.info("[INFO] Đang cài đặt thư viện...")
+    
+    # Kiểm tra từng thư viện
+    missing_libraries = []
+    
+    for lib in required_libraries:
         try:
-            # Upgrade pip
-            subprocess.run(
-                ["python", "-m", "pip", "install", "--upgrade", "pip"],
-                capture_output=True,
-                check=True
-            )
-            # Install requirements
-            subprocess.run(
-                ["python", "-m", "pip", "install", "-r", str(req_file)],
-                capture_output=True,
-                check=True
-            )
-            log.info("[OK] Đã cài đặt thư viện")
+            # Xử lý tên thư viện đặc biệt để import
+            import_name = lib.replace("-", "_")
+            if lib == "mysql-connector-python":
+                import_name = "mysql.connector"
+            elif lib == "webdriver-manager":
+                import_name = "webdriver_manager"
+            elif lib == "customtkinter":
+                import_name = "customtkinter"
+            
+            # Thử import thư viện
+            __import__(import_name)
+        except ImportError:
+            missing_libraries.append(lib)
+        except Exception:
+            # Nếu có lỗi khác khi import, coi như thiếu
+            missing_libraries.append(lib)
+    
+    if not missing_libraries:
+        log.info("[OK] Tất cả thư viện đã sẵn sàng (%d thư viện)", len(required_libraries))
+        return True
+    
+    # Có thư viện thiếu, cài đặt tất cả
+    log.info("[INFO] Phát hiện %d thư viện thiếu: %s", len(missing_libraries), ", ".join(missing_libraries))
+    log.info("[INFO] Đang cài đặt thư viện từ requirements.txt...")
+    
+    try:
+        # Upgrade pip trước (không capture output để tránh lỗi encoding)
+        log.info("[INFO] Đang nâng cấp pip...")
+        subprocess.run(
+            ["python", "-m", "pip", "install", "--upgrade", "pip", "--quiet"],
+            check=False  # Không bắt buộc phải thành công, không capture output
+        )
+        
+        # Cài đặt tất cả thư viện từ requirements.txt
+        log.info("[INFO] Đang cài đặt thư viện...")
+        # Không capture output để tránh lỗi encoding, để pip hiển thị trực tiếp
+        result = subprocess.run(
+            ["python", "-m", "pip", "install", "-r", str(req_file)],
+            check=False
+        )
+        
+        if result.returncode == 0:
+            log.info("[OK] Đã cài đặt thành công tất cả thư viện")
+            # Kiểm tra lại để đảm bảo tất cả đã được cài đặt
+            still_missing = []
+            for lib in missing_libraries:
+                try:
+                    import_name = lib.replace("-", "_")
+                    if lib == "mysql-connector-python":
+                        import_name = "mysql.connector"
+                    elif lib == "webdriver-manager":
+                        import_name = "webdriver_manager"
+                    elif lib == "customtkinter":
+                        import_name = "customtkinter"
+                    __import__(import_name)
+                except ImportError:
+                    still_missing.append(lib)
+            
+            if still_missing:
+                log.warning("[CẢNH BÁO] Một số thư viện vẫn chưa được cài đặt: %s", ", ".join(still_missing))
+                return False
             return True
-        except subprocess.CalledProcessError:
-            log.error("[LỖI] Không thể cài đặt thư viện!")
+        else:
+            log.error("[LỖI] Có lỗi khi cài đặt thư viện (mã lỗi: %d)", result.returncode)
+            log.error("[LỖI] Vui lòng kiểm tra output ở trên để biết chi tiết")
             return False
+            
+    except Exception as e:
+        log.error("[LỖI] Không thể cài đặt thư viện: %s", e)
+        return False
 
 
 def print_header():

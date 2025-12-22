@@ -151,6 +151,35 @@ class Config:
             "password": "input[name='login_password']",
             "login_button": "button[type='submit']",
         }
+    
+    # Database configuration
+    @property
+    def db_host(self) -> str:
+        """Host của MySQL database."""
+        return self._get_env("DB_HOST", "103.97.126.29")
+    
+    @property
+    def db_port(self) -> int:
+        """Port của MySQL database."""
+        try:
+            return int(self._get_env("DB_PORT", "3306"))
+        except ValueError:
+            return 3306
+    
+    @property
+    def db_user(self) -> str:
+        """Username cho MySQL database."""
+        return self._get_env("DB_USER", "gahwiukq_VPCCNTNT_Draft")
+    
+    @property
+    def db_password(self) -> str:
+        """Password cho MySQL database."""
+        return self._get_env("DB_PASSWORD", "k5ZMzsgh4GKkSH4hMFdb")
+    
+    @property
+    def db_name(self) -> str:
+        """Tên database MySQL."""
+        return self._get_env("DB_NAME", "gahwiukq_VPCCNTNT_Draft")
 
 
 # Singleton instance

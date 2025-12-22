@@ -5,6 +5,7 @@ Module lấy thông tin hệ thống: thiết bị, IP, hostname, v.v.
 import platform
 import socket
 from typing import Dict, Optional
+import requests
 
 
 def get_system_info() -> Dict[str, Optional[str]]:
@@ -32,16 +33,26 @@ def get_system_info() -> Dict[str, Optional[str]]:
         pass
     
     try:
-        # IP Address (lấy IP local)
+        # IP Public trước, fallback local
+        try:
+            resp = requests.get("https://api.ipify.org", timeout=3)
+            if resp.status_code == 200:
+                info["ip_address"] = resp.text.strip()
+        except Exception:
+            pass
+
+        # IP Address (lấy IP local) nếu chưa có
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             # Không cần kết nối thực sự, chỉ để lấy IP local
             s.connect(('8.8.8.8', 80))
-            info['ip_address'] = s.getsockname()[0]
+            if not info.get("ip_address"):
+                info['ip_address'] = s.getsockname()[0]
         except Exception:
             # Fallback: lấy IP từ hostname
             try:
-                info['ip_address'] = socket.gethostbyname(socket.gethostname())
+                if not info.get("ip_address"):
+                    info['ip_address'] = socket.gethostbyname(socket.gethostname())
             except Exception:
                 pass
         finally:

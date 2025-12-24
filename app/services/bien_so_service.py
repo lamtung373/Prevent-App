@@ -329,16 +329,36 @@ class BienSoService:
             try:
                 plate_formatted = self._format_plate_site3(plate)
                 log.info("Đang nhập biển số: %s (đã format: %s)", plate, plate_formatted)
+                
+                # Đợi element sẵn sàng để tương tác
                 so_dk_field = self.automation.wait.until(
-                    EC.presence_of_element_located(
+                    EC.element_to_be_clickable(
                         (
                             By.CSS_SELECTOR,
                             "input#ctl00_ContentPlaceHolder1_so_dk, input[name='ctl00$ContentPlaceHolder1$so_dk']",
                         )
                     )
                 )
-                so_dk_field.clear()
-                so_dk_field.send_keys(plate_formatted)
+                
+                # Scroll element vào viewport
+                self.automation.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", so_dk_field)
+                
+                # Đợi một chút sau khi scroll
+                try:
+                    WebDriverWait(self.automation.driver, 0.5).until(
+                        lambda d: so_dk_field.is_displayed() and so_dk_field.is_enabled()
+                    )
+                except Exception:
+                    pass
+                
+                # Xóa và nhập dữ liệu bằng JavaScript
+                try:
+                    self.automation.driver.execute_script("arguments[0].value = '';", so_dk_field)
+                    self.automation.driver.execute_script("arguments[0].value = arguments[1];", so_dk_field, plate_formatted)
+                except Exception:
+                    # Fallback: dùng cách thông thường
+                    so_dk_field.clear()
+                    so_dk_field.send_keys(plate_formatted)
 
                 try:
                     btn_search = self.automation.wait.until(
@@ -349,6 +369,8 @@ class BienSoService:
                             )
                         )
                     )
+                    # Scroll nút tìm kiếm vào view
+                    self.automation.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", btn_search)
                     try:
                         btn_search.click()
                     except Exception:

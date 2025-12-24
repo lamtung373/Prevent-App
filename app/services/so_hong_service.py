@@ -292,16 +292,38 @@ class SoHongService:
             try:
                 formatted_seri = self._format_seri_site3(seri_so)
                 log.info("Đang nhập số seri: %s (đã format: %s)", seri_so, formatted_seri)
+                
+                # Đợi element sẵn sàng để tương tác (không chỉ presence)
                 seri_input = self.automation.wait.until(
-                    EC.presence_of_element_located((By.ID, "ctl00_ContentPlaceHolder1_seri"))
+                    EC.element_to_be_clickable((By.ID, "ctl00_ContentPlaceHolder1_seri"))
                 )
-                seri_input.clear()
-                seri_input.send_keys(formatted_seri)
+                
+                # Scroll element vào viewport để đảm bảo nhìn thấy
+                self.automation.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", seri_input)
+                
+                # Đợi một chút sau khi scroll
+                try:
+                    WebDriverWait(self.automation.driver, 0.5).until(
+                        lambda d: seri_input.is_displayed() and seri_input.is_enabled()
+                    )
+                except Exception:
+                    pass
+                
+                # Xóa và nhập dữ liệu bằng JavaScript để tránh lỗi interactable
+                try:
+                    self.automation.driver.execute_script("arguments[0].value = '';", seri_input)
+                    self.automation.driver.execute_script("arguments[0].value = arguments[1];", seri_input, formatted_seri)
+                except Exception:
+                    # Fallback: dùng cách thông thường
+                    seri_input.clear()
+                    seri_input.send_keys(formatted_seri)
 
                 try:
                     btn_tim = self.automation.wait.until(
                         EC.element_to_be_clickable((By.ID, "ctl00_ContentPlaceHolder1_tim"))
                     )
+                    # Scroll nút tìm kiếm vào view
+                    self.automation.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", btn_tim)
                     try:
                         btn_tim.click()
                     except Exception:

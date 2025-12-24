@@ -59,6 +59,9 @@ class WebAutomation:
         chrome_options.add_argument("--disable-breakpad")
         chrome_options.add_argument("--disable-crash-reporter")
         
+        # Tối ưu page load: chỉ disable DNS prefetch (giữ ảnh để hiển thị bình thường)
+        chrome_options.add_argument("--dns-prefetch-disable")
+        
         # Tối ưu page load strategy
         chrome_options.page_load_strategy = "eager"  # Không đợi tất cả resources load
         
@@ -80,8 +83,10 @@ class WebAutomation:
         # Cache ChromeDriver để tránh tải lại mỗi lần
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        self.driver.implicitly_wait(0.5)
-        self.wait = WebDriverWait(self.driver, 2)
+        # Giảm implicit wait để tăng tốc (0.3s đủ nhanh cho các element phổ biến)
+        self.driver.implicitly_wait(0.3)
+        # Giảm WebDriverWait timeout từ 2s → 1.5s (đa số page load nhanh)
+        self.wait = WebDriverWait(self.driver, 1.5)
 
     def login(
         self,

@@ -10,7 +10,7 @@ from mysql.connector import Error, pooling
 from mysql.connector.pooling import MySQLConnectionPool
 
 from core.config import config
-from core.logging_utils import log
+from core.logging_utils import log, log_timing_start, log_timing_end
 from core.system_info import get_device_name, get_ip_address, get_system_info
 
 
@@ -37,7 +37,7 @@ class DatabaseManager:
         try:
             pool_config = {
                 'pool_name': 'tra_cuu_pool',
-                'pool_size': 5,
+                'pool_size': 10,  # Tăng từ 5 → 10 để xử lý concurrent requests tốt hơn
                 'pool_reset_session': True,
                 'host': config.db_host,
                 'port': config.db_port,
@@ -47,6 +47,7 @@ class DatabaseManager:
                 'charset': 'utf8mb4',
                 'collation': 'utf8mb4_unicode_ci',
                 'autocommit': True,
+                'connect_timeout': 5,  # Timeout 5s để tránh hang
             }
             
             DatabaseManager._pool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
@@ -143,6 +144,7 @@ class DatabaseManager:
         Returns:
             True nếu ghi thành công, False nếu có lỗi
         """
+        start_time = log_timing_start("Ghi database")
         connection = None
         cursor = None
         try:
@@ -180,10 +182,12 @@ class DatabaseManager:
             
             cursor.execute(insert_sql, values)
             connection.commit()
+            log_timing_end("Ghi database", start_time)
             return True
             
         except Error as e:
             log.error("[Database] Lỗi khi ghi lịch sử tra cứu: %s", e)
+            log_timing_end("Ghi database (lỗi)", start_time)
             if connection:
                 try:
                     connection.rollback()

@@ -1,6 +1,5 @@
 """Service tra cứu đương sự trên các trang web."""
 
-import time
 from typing import Optional
 from urllib.parse import quote_plus
 from selenium.webdriver.common.by import By
@@ -10,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from core.automation import WebAutomation
 from core.config import config
-from core.logging_utils import log
+from core.logging_utils import log, log_timing_start, log_timing_end
 from core.shared_utils import find_first_element, quick_find_login_fields
 
 
@@ -36,6 +35,7 @@ class DuongSuService:
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
+        start = log_timing_start("Trang 1")
         try:
             self.automation.login(
                 url=config.site1_search_url,
@@ -54,8 +54,10 @@ class DuongSuService:
                 page_name=page_name,
                 input_type="số căn cước",
             )
+            log_timing_end("Trang 1", start)
         except Exception as exc:
             log.error("[Lỗi] Trang 1: Lỗi khi tra cứu đương sự: %s", exc)
+            log_timing_end("Trang 1 (lỗi)", start)
 
     # --- Site 2: 210.245.111.1/dsnc ---
     def search_site2(self, so_can_cuoc: str):
@@ -67,6 +69,7 @@ class DuongSuService:
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
 
+        start = log_timing_start("Trang 2")
         try:
             self.automation.login(
                 url=config.site2_base_url,
@@ -100,8 +103,10 @@ class DuongSuService:
                 pass
 
             log.info("Đã tra cứu trang: %s", page_name)
+            log_timing_end("Trang 2", start)
         except Exception as exc:
             log.error("[Lỗi] Trang 2: Lỗi khi tra cứu đương sự: %s", exc)
+            log_timing_end("Trang 2 (lỗi)", start)
 
     # --- Site 3: hcm.cenm.vn ---
     def search_site3(self, so_can_cuoc: str):
@@ -111,6 +116,7 @@ class DuongSuService:
         Chuẩn bị tra cứu: login -> mở mục Đương sự -> nhập số căn cước vào so_cmt.
         """
         page_name = "hcm.cenm.vn"
+        start = log_timing_start("Trang 3")
         try:
             log.info("Đang đăng nhập trang: %s", page_name)
             self.automation.driver.get(config.site3_base_url)
@@ -225,7 +231,13 @@ class DuongSuService:
                     except Exception:
                         pass
 
-                time.sleep(1)
+                # Đợi trang load xong thay vì time.sleep
+                try:
+                    WebDriverWait(self.automation.driver, 1.5).until(
+                        lambda d: d.execute_script("return document.readyState") == "complete"
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -263,8 +275,10 @@ class DuongSuService:
                 log.info("Đã tra cứu trang: %s", page_name)
             except Exception as exc:
                 log.error("[Lỗi] Trang 3: Lỗi khi tra cứu đương sự: %s", exc)
+            log_timing_end("Trang 3", start)
         except Exception as exc:
             log.error("[Lỗi] Trang 3: Lỗi khi đăng nhập: %s", exc)
+            log_timing_end("Trang 3 (lỗi)", start)
 
     # --- Site 4: 14.161.50.224 ---
     def search_site4(self, so_can_cuoc: str):
@@ -277,6 +291,7 @@ class DuongSuService:
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
+        start = log_timing_start("Trang 4")
         try:
             self.automation.login(
                 url=config.site4_base_url,
@@ -288,19 +303,23 @@ class DuongSuService:
                 page_name=page_name,
             )
 
-            # Đợi một chút để đảm bảo đăng nhập hoàn tất
-            time.sleep(0.5)
-
             # Điều hướng trực tiếp đến URL tra cứu với tham số option2 và keyword
             search_url = f"http://14.161.50.224/tra-cuu/?option2=1&keyword={quote_plus(so_can_cuoc)}"
             log.info("Đang tra cứu số căn cước: %s", so_can_cuoc)
             log.info("Điều hướng đến: %s", search_url)
             self.automation.driver.get(search_url)
 
-            # Đợi trang load xong
-            time.sleep(1)
+            # Đợi trang load xong thay vì time.sleep
+            try:
+                WebDriverWait(self.automation.driver, 1.5).until(
+                    lambda d: d.execute_script("return document.readyState") == "complete"
+                )
+            except Exception:
+                pass
 
             log.info("Đã tra cứu trang: %s", page_name)
+            log_timing_end("Trang 4", start)
         except Exception as exc:
             log.error("[Lỗi] Trang 4: Lỗi khi tra cứu đương sự: %s", exc)
+            log_timing_end("Trang 4 (lỗi)", start)
 

@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import time
 from typing import Callable, Optional
 
 LOG_FORMAT = "%(message)s"
@@ -61,4 +62,31 @@ def log_section(title: str) -> None:
 def log_step(msg: str) -> None:
     """Log một bước thực hiện nhỏ - chỉ dùng cho thông tin quan trọng."""
     log.info("  • %s", msg)
+
+
+def log_timing_start(step_name: str) -> float:
+    """
+    Bắt đầu đo thời gian một bước.
+    
+    Args:
+        step_name: Tên bước cần đo thời gian
+    
+    Returns:
+        Thời điểm bắt đầu (timestamp)
+    """
+    start_time = time.time()
+    log.info("[⏱️ Bắt đầu] %s", step_name)
+    return start_time
+
+
+def log_timing_end(step_name: str, start_time: float):
+    """
+    Kết thúc và log thời gian đã trôi qua.
+    
+    Args:
+        step_name: Tên bước đã đo
+        start_time: Thời điểm bắt đầu từ log_timing_start()
+    """
+    elapsed = time.time() - start_time
+    log.info("[✓ Hoàn tất] %s - Thời gian: %.2fs", step_name, elapsed)
 

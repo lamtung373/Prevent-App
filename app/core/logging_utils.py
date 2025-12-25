@@ -53,14 +53,47 @@ def set_gui_callback(callback: Optional[Callable[[str], None]]):
         log = setup_logging(gui_callback=callback)
 
 
-def log_section(title: str) -> None:
-    """In ra một block rõ ràng cho từng phần - đơn giản hóa."""
+def log_header(title: str, tag: str = "INFO") -> None:
+    """
+    In ra header cho các phần chính trong workflow.
+    
+    Args:
+        title: Tiêu đề cần hiển thị
+        tag: Tag phân loại (ví dụ: BROWSER, DATABASE, SEARCH, UPDATE)
+    """
     log.info("")
-    log.info("═ %s", title)
+    log.info("[%s] %s", tag.upper(), title)
+
+
+def log_section(title: str, tag: str = "STEP") -> None:
+    """
+    In ra section header cho từng trang/bước.
+    
+    Args:
+        title: Tiêu đề cần hiển thị
+        tag: Tag phân loại (ví dụ: TRANG 1, TRANG 2, DATABASE)
+    """
+    log.info("")
+    log.info("[%s] %s", tag.upper(), title)
 
 
 def log_step(msg: str) -> None:
-    """Log một bước thực hiện nhỏ - chỉ dùng cho thông tin quan trọng."""
+    """Log một bước thực hiện nhỏ."""
+    log.info("  → %s", msg)
+
+
+def log_success(msg: str) -> None:
+    """Log thông báo thành công."""
+    log.info("  ✓ %s", msg)
+
+
+def log_error_msg(msg: str) -> None:
+    """Log thông báo lỗi (không raise exception)."""
+    log.error("  ✗ %s", msg)
+
+
+def log_info(msg: str) -> None:
+    """Log thông tin chung."""
     log.info("  • %s", msg)
 
 
@@ -75,7 +108,7 @@ def log_timing_start(step_name: str) -> float:
         Thời điểm bắt đầu (timestamp)
     """
     start_time = time.time()
-    log.info("[⏱️ Bắt đầu] %s", step_name)
+    log.info("  ⏱️  %s...", step_name)
     return start_time
 
 
@@ -88,5 +121,5 @@ def log_timing_end(step_name: str, start_time: float):
         start_time: Thời điểm bắt đầu từ log_timing_start()
     """
     elapsed = time.time() - start_time
-    log.info("[✓ Hoàn tất] %s - Thời gian: %.2fs", step_name, elapsed)
+    log.info("  ✓ %s (%.2fs)", step_name, elapsed)
 

@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from core.automation import WebAutomation
 from core.config import config
-from core.logging_utils import log, log_timing_start, log_timing_end
+from core.logging_utils import log, log_step, log_timing_start, log_timing_end
 from core.shared_utils import find_first_element, quick_find_login_fields
 
 
@@ -51,8 +51,9 @@ class SoHongService:
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
-        start = log_timing_start("Trang 1")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site1_search_url,
                 username=config.site1_username,
@@ -63,9 +64,10 @@ class SoHongService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 1 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
             
+            log_step(f"Nhập số seri: {seri_so}")
             search_success = self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=seri_so,
@@ -75,13 +77,13 @@ class SoHongService:
                 input_type="số seri sổ",
             )
             if search_success:
-                log_timing_end("Trang 1", start)
+                log_timing_end("Đăng nhập và tra cứu", start)
             else:
-                log_timing_end("Trang 1 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
             return search_success
         except Exception as exc:
-            log.error("[Lỗi] Trang 1: Lỗi khi tra cứu sổ hồng: %s", exc)
-            log_timing_end("Trang 1 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 
     def search_site2(self, thua_dat_so: str, to_ban_do_so: str, seri_so: str = None) -> bool:
@@ -117,8 +119,9 @@ class SoHongService:
                 return "%" + "%".join(groups) + "%"
             return f"%{value}%"
 
-        start = log_timing_start("Trang 2")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site2_base_url,
                 username=config.site2_username,
@@ -129,7 +132,7 @@ class SoHongService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 2 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
 
             td_value = _wrap_thua_dat(thua_dat_so)
@@ -139,16 +142,16 @@ class SoHongService:
             input_parts = []
             if thua_dat_so and thua_dat_so.strip():
                 input_parts.append(
-                    f"thửa đất: {thua_dat_so.strip()} (đã format: {td_value or '(rỗng)'})"
+                    f"thửa đất: {thua_dat_so.strip()} (format: {td_value or '(rỗng)'})"
                 )
             if to_ban_do_so and to_ban_do_so.strip():
                 input_parts.append(
-                    f"tờ bản đồ: {to_ban_do_so.strip()} (đã format: {map_value or '(rỗng)'})"
+                    f"tờ bản đồ: {to_ban_do_so.strip()} (format: {map_value or '(rỗng)'})"
                 )
             if input_parts:
-                log.info("Đang nhập %s", ", ".join(input_parts))
+                log_step(f"Nhập {', '.join(input_parts)}")
             else:
-                log.info("Đang nhập thông tin tra cứu sổ hồng")
+                log_step("Nhập thông tin tra cứu sổ hồng")
 
             field_input = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtField")))
             map_input = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtMap")))
@@ -172,12 +175,11 @@ class SoHongService:
             except Exception:
                 pass
 
-            log.info("Đã tra cứu trang: %s", page_name)
-            log_timing_end("Trang 2", start)
+            log_timing_end("Đăng nhập và tra cứu", start)
             return True
         except Exception as exc:
-            log.error("[Lỗi] Trang 2: Lỗi khi tra cứu sổ hồng: %s", exc)
-            log_timing_end("Trang 2 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 
     def search_site3(self, seri_so: str) -> bool:
@@ -193,9 +195,9 @@ class SoHongService:
             True nếu thành công, False nếu thất bại
         """
         page_name = "hcm.cenm.vn"
-        start = log_timing_start("Trang 3")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
-            log.info("Đang đăng nhập trang: %s", page_name)
+            log_step("Đăng nhập...")
             self.automation.driver.get(config.site3_base_url)
 
             user_field, pass_field = quick_find_login_fields(self.automation.driver)
@@ -314,7 +316,7 @@ class SoHongService:
 
             try:
                 formatted_seri = self._format_seri_site3(seri_so)
-                log.info("Đang nhập số seri: %s (đã format: %s)", seri_so, formatted_seri)
+                log_step(f"Nhập số seri: {seri_so} (format: {formatted_seri})")
                 
                 # Đợi element sẵn sàng để tương tác (không chỉ presence)
                 seri_input = self.automation.wait.until(
@@ -354,16 +356,15 @@ class SoHongService:
                 except Exception:
                     seri_input.send_keys(Keys.RETURN)
 
-                log.info("Đã tra cứu trang: %s", page_name)
-                log_timing_end("Trang 3", start)
+                log_timing_end("Đăng nhập và tra cứu", start)
                 return True
             except Exception as exc:
-                log.error("[Lỗi] Trang 3 (sổ hồng): Lỗi khi tra cứu: %s", exc)
-                log_timing_end("Trang 3 (lỗi)", start)
+                log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
         except Exception as exc:
-            log.error("[Lỗi] Trang 3 (sổ hồng): Lỗi khi đăng nhập: %s", exc)
-            log_timing_end("Trang 3 (lỗi)", start)
+            log.error("  ✗ Lỗi khi đăng nhập: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 
     def search_site4(self, seri_so: str) -> bool:
@@ -382,8 +383,9 @@ class SoHongService:
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
-        start = log_timing_start("Trang 4")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site4_base_url,
                 username=config.site4_username,
@@ -394,7 +396,7 @@ class SoHongService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 4 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
 
             # Format số seri (bỏ khoảng trắng) trước khi đưa vào URL
@@ -402,8 +404,8 @@ class SoHongService:
             
             # Điều hướng trực tiếp đến URL tra cứu với tham số option3 và keyword
             search_url = f"http://14.161.50.224/tra-cuu/?option3=1&keyword={quote_plus(seri_clean)}"
-            log.info("Đang tra cứu số seri: %s (đã format: %s)", seri_so, seri_clean)
-            log.info("Điều hướng đến: %s", search_url)
+            log_step(f"Tra cứu số seri: {seri_so} (format: {seri_clean})")
+
             self.automation.driver.get(search_url)
 
             # Đợi trang load xong thay vì time.sleep
@@ -414,11 +416,10 @@ class SoHongService:
             except Exception:
                 pass
 
-            log.info("Đã tra cứu trang: %s", page_name)
-            log_timing_end("Trang 4", start)
+            log_timing_end("Đăng nhập và tra cứu", start)
             return True
         except Exception as exc:
-            log.error("[Lỗi] Trang 4 (sổ hồng): Lỗi khi tra cứu: %s", exc)
-            log_timing_end("Trang 4 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 

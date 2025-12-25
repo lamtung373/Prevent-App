@@ -20,7 +20,7 @@ if str(app_dir) not in sys.path:
 
 from core.automation import WebAutomation
 from core.config import config
-from core.logging_utils import log, log_section, set_gui_callback
+from core.logging_utils import log, log_header, log_section, log_step, log_success, log_info, set_gui_callback
 from core.shared_utils import init_update_manager, switch_to_new_tab
 from core.database import db_manager
 from services.so_hong_service import SoHongService
@@ -46,12 +46,20 @@ def tra_cuu_so_hong(
     if gui_callback:
         set_gui_callback(gui_callback)
     
-    # Khởi tạo Chrome trước để mở ngay (không chờ update check)
+    # BƯỚC 1: Khởi tạo trình duyệt
+    log_header("Khởi chạy trình duyệt", tag="BROWSER")
     automation = WebAutomation(headless=headless)
+    log_success("Trình duyệt đã sẵn sàng")
     
-    # Khởi động background update check sau khi Chrome đã mở (không block)
+    # BƯỚC 2: Khởi tạo hệ thống
+    log_header("Khởi tạo hệ thống", tag="SYSTEM")
+    log_step("Khởi tạo database...")
+    db_manager.test_connection(silent=True)
+    log_step("Kiểm tra cập nhật (chế độ nền)...")
     init_update_manager()
     
+    # BƯỚC 3: Bắt đầu tra cứu
+    log_header(f"Tra cứu sổ hồng: {seri_so}", tag="SEARCH")
     service = SoHongService(automation)
 
     # Theo dõi trạng thái từng trang
@@ -59,15 +67,15 @@ def tra_cuu_so_hong(
     errors = []
     
     try:
-        # Bước 1: Trang preventlistview (Site 1)
-        log_section("TRANG 1: 115.79.139.172:8080/stp/preventlistview.do")
+        # Trang 1: preventlistview
+        log_section("115.79.139.172:8080/stp/preventlistview.do", tag="TRANG 1")
         success = service.search_site1(seri_so)
         page_statuses["Trang 1"] = "thành công" if success else "thất bại"
         if not success:
             errors.append("Trang 1: Tra cứu thất bại")
 
-        # Bước 2: Trang 210.245.111.1/dsnc (Site 2)
-        log_section("TRANG 2: 210.245.111.1/dsnc")
+        # Trang 2: 210.245.111.1/dsnc
+        log_section("210.245.111.1/dsnc", tag="TRANG 2")
         switch_to_new_tab(automation.driver)
         success = service.search_site2(
             thua_dat_so=thua_dat_so or "",
@@ -78,25 +86,25 @@ def tra_cuu_so_hong(
         if not success:
             errors.append("Trang 2: Tra cứu thất bại")
 
-        # Bước 3: Trang hcm.cenm.vn (Site 3)
-        log_section("TRANG 3: hcm.cenm.vn")
+        # Trang 3: hcm.cenm.vn
+        log_section("hcm.cenm.vn", tag="TRANG 3")
         switch_to_new_tab(automation.driver)
         success = service.search_site3(seri_so)
         page_statuses["Trang 3"] = "thành công" if success else "thất bại"
         if not success:
             errors.append("Trang 3: Tra cứu thất bại")
 
-        # Bước 4: Trang 14.161.50.224 (Site 4)
-        log_section("TRANG 4: 14.161.50.224")
+        # Trang 4: 14.161.50.224
+        log_section("14.161.50.224", tag="TRANG 4")
         switch_to_new_tab(automation.driver)
         success = service.search_site4(seri_so)
         page_statuses["Trang 4"] = "thành công" if success else "thất bại"
         if not success:
             errors.append("Trang 4: Tra cứu thất bại")
         
-        log.info("")
-        log.info("═ HOÀN TẤT")
-        log.info("Đã tra cứu sổ hồng: %s", seri_so)
+        # Kết thúc tra cứu
+        log_header("Hoàn tất tra cứu", tag="COMPLETE")
+        log_success(f"Đã tra cứu sổ hồng: {seri_so}")
         
         # Tạo chuỗi trạng thái chi tiết cho từng trang
         trang_thai = "; ".join([f"{page}: {status}" for page, status in page_statuses.items()])

@@ -18,13 +18,14 @@ from zipfile import ZipFile
 
 import requests
 
-# Setup logger cho update manager
+# Setup logger cho update manager (tắt log để không làm rối workflow)
 _update_logger = logging.getLogger("update_manager")
 if not _update_logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("[Update] %(message)s"))
     _update_logger.addHandler(handler)
-    _update_logger.setLevel(logging.INFO)
+    # Tắt log vì đã thông báo "Kiểm tra cập nhật (chế độ nền)..."
+    _update_logger.setLevel(logging.CRITICAL)  # Chỉ hiển thị lỗi nghiêm trọng
     _update_logger.propagate = False
 
 

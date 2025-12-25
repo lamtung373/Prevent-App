@@ -10,7 +10,7 @@ from mysql.connector import Error, pooling
 from mysql.connector.pooling import MySQLConnectionPool
 
 from core.config import config
-from core.logging_utils import log, log_timing_start, log_timing_end
+from core.logging_utils import log, log_success, log_timing_start, log_timing_end
 from core.system_info import get_device_name, get_ip_address, get_system_info
 
 
@@ -51,9 +51,9 @@ class DatabaseManager:
             }
             
             DatabaseManager._pool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
-            log.info("[Database] Đã khởi tạo connection pool thành công")
+            # Log được xử lý ở tầng cao hơn (trong tra_cuu_*.py)
         except Error as e:
-            log.error("[Database] Lỗi khi khởi tạo connection pool: %s", e)
+            log.error("  ✗ Lỗi khi khởi tạo connection pool: %s", e)
             DatabaseManager._pool = None
     
     def _get_connection(self):
@@ -109,12 +109,11 @@ class DatabaseManager:
                 """
                 cursor.execute(create_table_sql)
                 connection.commit()
-                log.info("[Database] Đã tạo bảng tra_cuu_history thành công")
-            else:
-                log.info("[Database] Bảng tra_cuu_history đã tồn tại")
+                # Log được xử lý ở tầng cao hơn
+            # else: Bảng đã tồn tại - không cần log
                 
         except Error as e:
-            log.error("[Database] Lỗi khi kiểm tra/tạo bảng: %s", e)
+            log.error("  ✗ Lỗi khi kiểm tra/tạo bảng: %s", e)
         finally:
             if cursor:
                 cursor.close()
@@ -186,7 +185,7 @@ class DatabaseManager:
             return True
             
         except Error as e:
-            log.error("[Database] Lỗi khi ghi lịch sử tra cứu: %s", e)
+            log.error("  ✗ Lỗi khi ghi lịch sử tra cứu: %s", e)
             log_timing_end("Ghi database (lỗi)", start_time)
             if connection:
                 try:
@@ -200,17 +199,23 @@ class DatabaseManager:
             if connection:
                 connection.close()
     
-    def test_connection(self) -> bool:
-        """Kiểm tra kết nối database."""
+    def test_connection(self, silent: bool = True) -> bool:
+        """
+        Kiểm tra kết nối database.
+        
+        Args:
+            silent: Nếu True, không log kết quả (default)
+        """
         connection = None
         try:
             connection = self._get_connection()
             if connection.is_connected():
-                log.info("[Database] Kết nối database thành công")
+                if not silent:
+                    log_success("Kết nối database thành công")
                 return True
             return False
         except Error as e:
-            log.error("[Database] Lỗi kết nối database: %s", e)
+            log.error("  ✗ Lỗi kết nối database: %s", e)
             return False
         finally:
             if connection:

@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from core.automation import WebAutomation
 from core.config import config
-from core.logging_utils import log, log_timing_start, log_timing_end
+from core.logging_utils import log, log_step, log_success, log_timing_start, log_timing_end
 from core.shared_utils import find_first_element, quick_find_login_fields
 
 
@@ -39,8 +39,9 @@ class BienSoService:
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
-        start = log_timing_start("Trang 1")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site1_search_url,
                 username=config.site1_username,
@@ -51,9 +52,10 @@ class BienSoService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 1 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
             
+            log_step(f"Nhập biển số: {plate}")
             search_success = self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=plate,
@@ -63,13 +65,13 @@ class BienSoService:
                 input_type="biển số",
             )
             if search_success:
-                log_timing_end("Trang 1", start)
+                log_timing_end("Đăng nhập và tra cứu", start)
             else:
-                log_timing_end("Trang 1 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
             return search_success
         except Exception as exc:
-            log.error("[Lỗi] Trang 1: Lỗi khi tra cứu biển số: %s", exc)
-            log_timing_end("Trang 1 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
     
     @staticmethod
@@ -150,8 +152,9 @@ class BienSoService:
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
 
-        start = log_timing_start("Trang 2")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site2_base_url,
                 username=config.site2_username,
@@ -162,7 +165,7 @@ class BienSoService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 2 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
 
             try:
@@ -172,7 +175,7 @@ class BienSoService:
                 pass
 
             p1, p2 = self._split_plate_site2(plate)
-            log.info("Đang nhập biển số: %s (P1: %s, P2: %s)", plate, p1, p2)
+            log_step(f"Nhập biển số: {plate} (P1: {p1}, P2: {p2})")
 
             p1_field = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtP1")))
             p2_field = self.automation.wait.until(EC.presence_of_element_located((By.ID, "txtP2")))
@@ -187,12 +190,11 @@ class BienSoService:
             except Exception:
                 pass
 
-            log.info("Đã tra cứu trang: %s", page_name)
-            log_timing_end("Trang 2", start)
+            log_timing_end("Đăng nhập và tra cứu", start)
             return True
         except Exception as exc:
-            log.error("[Lỗi] Trang 2: Lỗi khi tra cứu: %s", exc)
-            log_timing_end("Trang 2 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 
     def search_site3(self, plate: str) -> bool:
@@ -208,9 +210,9 @@ class BienSoService:
             True nếu thành công, False nếu thất bại
         """
         page_name = "hcm.cenm.vn"
-        start = log_timing_start("Trang 3")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
-            log.info("Đang đăng nhập trang: %s", page_name)
+            log_step("Đăng nhập...")
             self.automation.driver.get(config.site3_base_url)
 
             user_field, pass_field = quick_find_login_fields(self.automation.driver)
@@ -351,7 +353,7 @@ class BienSoService:
 
             try:
                 plate_formatted = self._format_plate_site3(plate)
-                log.info("Đang nhập biển số: %s (đã format: %s)", plate, plate_formatted)
+                log_step(f"Nhập biển số: {plate} (format: {plate_formatted})")
                 
                 # Đợi element sẵn sàng để tương tác
                 so_dk_field = self.automation.wait.until(
@@ -401,16 +403,15 @@ class BienSoService:
                 except Exception:
                     so_dk_field.send_keys(Keys.RETURN)
 
-                log.info("Đã tra cứu trang: %s", page_name)
-                log_timing_end("Trang 3", start)
+                log_timing_end("Đăng nhập và tra cứu", start)
                 return True
             except Exception as exc:
-                log.error("[Lỗi] Trang 3: Lỗi khi tra cứu: %s", exc)
-                log_timing_end("Trang 3 (lỗi)", start)
+                log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
         except Exception as exc:
-            log.error("[Lỗi] Trang 3: Lỗi khi đăng nhập: %s", exc)
-            log_timing_end("Trang 3 (lỗi)", start)
+            log.error("  ✗ Lỗi khi đăng nhập: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 
     def search_site4(self, plate: str) -> bool:
@@ -429,8 +430,9 @@ class BienSoService:
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
-        start = log_timing_start("Trang 4")
+        start = log_timing_start("Đăng nhập và tra cứu")
         try:
+            log_step("Đăng nhập...")
             login_success = self.automation.login(
                 url=config.site4_base_url,
                 username=config.site4_username,
@@ -441,13 +443,13 @@ class BienSoService:
                 page_name=page_name,
             )
             if not login_success:
-                log_timing_end("Trang 4 (lỗi)", start)
+                log_timing_end("Đăng nhập và tra cứu (thất bại)", start)
                 return False
 
             # Điều hướng trực tiếp đến URL tra cứu với tham số option3 và keyword
             search_url = f"http://14.161.50.224/tra-cuu/?option3=1&keyword={quote_plus(plate)}"
-            log.info("Đang tra cứu biển số: %s", plate)
-            log.info("Điều hướng đến: %s", search_url)
+            log_step(f"Tra cứu biển số: {plate}")
+
             self.automation.driver.get(search_url)
 
             # Đợi trang load xong thay vì time.sleep
@@ -458,11 +460,10 @@ class BienSoService:
             except Exception:
                 pass
 
-            log.info("Đã tra cứu trang: %s", page_name)
-            log_timing_end("Trang 4", start)
+            log_timing_end("Đăng nhập và tra cứu", start)
             return True
         except Exception as exc:
-            log.error("[Lỗi] Trang 4: Lỗi khi tra cứu: %s", exc)
-            log_timing_end("Trang 4 (lỗi)", start)
+            log.error("  ✗ Lỗi khi tra cứu: %s", exc)
+            log_timing_end("Đăng nhập và tra cứu (lỗi)", start)
             return False
 

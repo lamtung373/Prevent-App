@@ -29,10 +29,9 @@ def init_update_manager(callback: Optional[Callable[[str, int, str], None]] = No
         version_file = app_dir / "version.json"
         
         def default_callback(status: str, progress: int, message: str):
-            """Callback mặc định chỉ log các trạng thái chính."""
-            # Không log "ready" vì UpdateManager đã log rồi, chỉ log "error"
-            if status == "error":
-                log.info("[Update] %s", message)
+            """Callback mặc định - không log gì cả vì update chạy nền."""
+            # Không log gì cả - update chạy silent ở chế độ nền
+            pass
         
         update_callback = callback or default_callback
         

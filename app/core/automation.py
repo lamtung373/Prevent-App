@@ -15,7 +15,7 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
-from .logging_utils import log
+from .logging_utils import log, log_step, log_success
 from .config import config
 
 
@@ -37,12 +37,12 @@ class WebAutomation:
         self.driver = None
         
         if browser_type == "edge":
-            log.info("Đang khởi tạo trình duyệt: Microsoft Edge")
+            log_step("Khởi tạo Microsoft Edge...")
             try:
                 self.driver = self._init_edge_driver(headless)
             except Exception as e:
-                log.warning("Không thể khởi tạo Edge: %s", str(e))
-                log.info("Đang chuyển sang Chrome...")
+                log.warning("  ⚠️  Không thể khởi tạo Edge: %s", str(e))
+                log_step("Đang chuyển sang Chrome...")
                 try:
                     self.driver = self._init_chrome_driver(headless)
                 except Exception as chrome_error:
@@ -55,12 +55,12 @@ class WebAutomation:
                         "4. Thử đặt BROWSER=chrome trong file .env"
                     )
         else:
-            log.info("Đang khởi tạo trình duyệt: Google Chrome")
+            log_step("Khởi tạo Google Chrome...")
             try:
                 self.driver = self._init_chrome_driver(headless)
             except Exception as e:
-                log.warning("Không thể khởi tạo Chrome: %s", str(e))
-                log.info("Đang chuyển sang Edge...")
+                log.warning("  ⚠️  Không thể khởi tạo Chrome: %s", str(e))
+                log_step("Đang chuyển sang Edge...")
                 try:
                     self.driver = self._init_edge_driver(headless)
                 except Exception as edge_error:
@@ -161,7 +161,7 @@ class WebAutomation:
         except Exception:
             # Nếu không có driver mặc định, thử download từ webdriver-manager
             try:
-                log.info("Đang tải ChromeDriver từ internet...")
+                log_step("Đang tải ChromeDriver...")
                 service = ChromeService(ChromeDriverManager().install())
                 return webdriver.Chrome(service=service, options=chrome_options)
             except Exception as e:
@@ -189,7 +189,7 @@ class WebAutomation:
         except Exception:
             # Nếu không có driver mặc định, thử download từ webdriver-manager
             try:
-                log.info("Đang tải EdgeDriver từ internet...")
+                log_step("Đang tải EdgeDriver...")
                 service = EdgeService(EdgeChromiumDriverManager().install())
                 return webdriver.Edge(service=service, options=edge_options)
             except Exception as e:
@@ -220,13 +220,11 @@ class WebAutomation:
             page_name: Tên trang để hiển thị trong log
         """
         try:
-            if page_name:
-                log.info("Đang đăng nhập trang: %s", page_name)
-            else:
+            # Log được xử lý ở service layer
+            if not page_name:
                 # Extract page name from URL
                 parsed = urlparse(url)
                 page_name = parsed.netloc or parsed.path.split('/')[0] if parsed.path else url
-                log.info("Đang đăng nhập trang: %s", page_name)
             self.driver.get(url)
 
             try:
@@ -287,7 +285,7 @@ class WebAutomation:
             return True
 
         except Exception as exc:
-            log.error("[Lỗi] Lỗi khi đăng nhập: %s", exc)
+            log.error("  ✗ Lỗi khi đăng nhập: %s", exc)
             return False
 
     def search_license_plate(
@@ -301,7 +299,7 @@ class WebAutomation:
     ) -> bool:
         """Tra cứu biển số xe hoặc số seri trên trang truyền vào."""
         try:
-            log.info("Đang nhập %s: %s", input_type, license_plate)
+            # Log được xử lý ở service layer
             self.driver.get(search_url)
 
             search_field = self.wait.until(
@@ -331,12 +329,11 @@ class WebAutomation:
             else:
                 search_field.send_keys(Keys.RETURN)
 
-            if page_name:
-                log.info("Đã tra cứu trang: %s", page_name)
+            # Log được xử lý ở service layer
             return True
 
         except Exception as exc:
-            log.error("[Lỗi] Lỗi khi tìm kiếm biển số: %s", exc)
+            log.error("  ✗ Lỗi khi tìm kiếm: %s", exc)
             return False
 
     def close(self):

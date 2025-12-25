@@ -15,7 +15,7 @@ app_dir = Path(__file__).parent
 if str(app_dir) not in sys.path:
     sys.path.insert(0, str(app_dir))
 
-from core.logging_utils import log, setup_logging
+from core.logging_utils import log, log_success, log_error_msg, log_info, setup_logging
 
 # Setup logging
 setup_logging()
@@ -32,7 +32,7 @@ def check_python() -> bool:
         )
         if result.returncode == 0:
             version = result.stdout.strip() or result.stderr.strip()
-            log.info("[OK] %s", version)
+            log_success(version)
             return True
         return False
     except FileNotFoundError:
@@ -42,7 +42,7 @@ def check_python() -> bool:
 def check_and_install_libraries(req_file: Path) -> bool:
     """Kiểm tra và cài đặt tất cả thư viện từ requirements.txt nếu thiếu."""
     if not req_file.exists():
-        log.error("[LỖI] Không tìm thấy file requirements.txt!")
+        log_error_msg("Không tìm thấy file requirements.txt!")
         return False
     
     # Đọc danh sách thư viện từ requirements.txt
@@ -60,11 +60,11 @@ def check_and_install_libraries(req_file: Path) -> bool:
                 if lib_name:
                     required_libraries.append(lib_name)
     except Exception as e:
-        log.error("[LỖI] Không thể đọc file requirements.txt: %s", e)
+        log_error_msg(f"Không thể đọc file requirements.txt: {e}")
         return False
     
     if not required_libraries:
-        log.warning("[CẢNH BÁO] Không tìm thấy thư viện nào trong requirements.txt")
+        log.warning("  ⚠️  Không tìm thấy thư viện nào trong requirements.txt")
         return True
     
     # Kiểm tra từng thư viện
@@ -90,23 +90,23 @@ def check_and_install_libraries(req_file: Path) -> bool:
             missing_libraries.append(lib)
     
     if not missing_libraries:
-        log.info("[OK] Tất cả thư viện đã sẵn sàng (%d thư viện)", len(required_libraries))
+        log_success(f"Tất cả thư viện đã sẵn sàng ({len(required_libraries)} thư viện)")
         return True
     
     # Có thư viện thiếu, cài đặt tất cả
-    log.info("[INFO] Phát hiện %d thư viện thiếu: %s", len(missing_libraries), ", ".join(missing_libraries))
-    log.info("[INFO] Đang cài đặt thư viện từ requirements.txt...")
+    log_info(f"Phát hiện {len(missing_libraries)} thư viện thiếu: {', '.join(missing_libraries)}")
+    log_info("Đang cài đặt thư viện từ requirements.txt...")
     
     try:
         # Upgrade pip trước (không capture output để tránh lỗi encoding)
-        log.info("[INFO] Đang nâng cấp pip...")
+        log_info("Đang nâng cấp pip...")
         subprocess.run(
             ["python", "-m", "pip", "install", "--upgrade", "pip", "--quiet"],
             check=False  # Không bắt buộc phải thành công, không capture output
         )
         
         # Cài đặt tất cả thư viện từ requirements.txt
-        log.info("[INFO] Đang cài đặt thư viện...")
+        log_info("Đang cài đặt thư viện...")
         # Không capture output để tránh lỗi encoding, để pip hiển thị trực tiếp
         result = subprocess.run(
             ["python", "-m", "pip", "install", "-r", str(req_file)],
@@ -114,7 +114,7 @@ def check_and_install_libraries(req_file: Path) -> bool:
         )
         
         if result.returncode == 0:
-            log.info("[OK] Đã cài đặt thành công tất cả thư viện")
+            log_success("Đã cài đặt thành công tất cả thư viện")
             # Kiểm tra lại để đảm bảo tất cả đã được cài đặt
             still_missing = []
             for lib in missing_libraries:
@@ -131,16 +131,16 @@ def check_and_install_libraries(req_file: Path) -> bool:
                     still_missing.append(lib)
             
             if still_missing:
-                log.warning("[CẢNH BÁO] Một số thư viện vẫn chưa được cài đặt: %s", ", ".join(still_missing))
+                log.warning(f"  ⚠️  Một số thư viện vẫn chưa được cài đặt: {', '.join(still_missing)}")
                 return False
             return True
         else:
-            log.error("[LỖI] Có lỗi khi cài đặt thư viện (mã lỗi: %d)", result.returncode)
-            log.error("[LỖI] Vui lòng kiểm tra output ở trên để biết chi tiết")
+            log_error_msg(f"Có lỗi khi cài đặt thư viện (mã lỗi: {result.returncode})")
+            log_error_msg("Vui lòng kiểm tra output ở trên để biết chi tiết")
             return False
             
     except Exception as e:
-        log.error("[LỖI] Không thể cài đặt thư viện: %s", e)
+        log_error_msg(f"Không thể cài đặt thư viện: {e}")
         return False
 
 
@@ -181,7 +181,7 @@ def get_user_choice() -> Optional[str]:
             if choice in ("1", "2", "3"):
                 return choice
             print()
-            print("[LỖI] Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 3.")
+            print("✗ Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 3.")
             print()
         except (EOFError, KeyboardInterrupt):
             return None
@@ -193,7 +193,7 @@ def get_bien_so_input() -> Optional[str]:
         bien_so = input("Nhập biển số xe (ví dụ: 30A-123.45): ").strip()
         if not bien_so:
             print()
-            print("[LỖI] Biển số không được để trống!")
+            print("✗ Biển số không được để trống!")
             return None
         return bien_so
     except (EOFError, KeyboardInterrupt):
@@ -206,7 +206,7 @@ def get_so_hong_input() -> Tuple[Optional[str], Optional[str], Optional[str]]:
         seri_so = input("Nhập số seri sổ (bắt buộc): ").strip()
         if not seri_so:
             print()
-            print("[LỖI] Số seri sổ không được để trống!")
+            print("✗ Số seri sổ không được để trống!")
             return None, None, None
         
         thua_dat = input("Nhập thửa đất số (tùy chọn, Enter để bỏ qua): ").strip() or None
@@ -223,7 +223,7 @@ def get_so_can_cuoc_input() -> Optional[str]:
         so_can_cuoc = input("Nhập số Căn cước công dân hoặc số Căn cước: ").strip()
         if not so_can_cuoc:
             print()
-            print("[LỖI] Số căn cước không được để trống!")
+            print("✗ Số căn cước không được để trống!")
             return None
         return so_can_cuoc
     except (EOFError, KeyboardInterrupt):
@@ -241,7 +241,7 @@ def run_tra_cuu_bien_so(bien_so: str) -> int:
         )
         return result.returncode
     except Exception as exc:
-        log.error("[LỖI] Lỗi khi chạy tra cứu biển số: %s", exc)
+        log_error_msg(f"Lỗi khi chạy tra cứu biển số: {exc}")
         return 1
 
 
@@ -262,7 +262,7 @@ def run_tra_cuu_so_hong(seri_so: str, thua_dat: Optional[str], to_ban_do: Option
         )
         return result.returncode
     except Exception as exc:
-        log.error("[LỖI] Lỗi khi chạy tra cứu sổ hồng: %s", exc)
+        log_error_msg(f"Lỗi khi chạy tra cứu sổ hồng: {exc}")
         return 1
 
 
@@ -277,7 +277,7 @@ def run_tra_cuu_duong_su(so_can_cuoc: str) -> int:
         )
         return result.returncode
     except Exception as exc:
-        log.error("[LỖI] Lỗi khi chạy tra cứu đương sự: %s", exc)
+        log_error_msg(f"Lỗi khi chạy tra cứu đương sự: {exc}")
         return 1
 
 
@@ -285,7 +285,7 @@ def check_and_apply_update() -> int:
     """Kiểm tra và cài đặt update."""
     update_script = app_dir / "check_and_apply_update.py"
     if not update_script.exists():
-        log.info("[INFO] Không tìm thấy script cập nhật, bỏ qua.")
+        # Silent - không cần log
         return 0
     
     try:
@@ -296,7 +296,7 @@ def check_and_apply_update() -> int:
         )
         return result.returncode
     except Exception as exc:
-        log.error("[LỖI] Lỗi khi kiểm tra update: %s", exc)
+        log_error_msg(f"Lỗi khi kiểm tra update: {exc}")
         return 1
 
 
@@ -319,11 +319,11 @@ def countdown_and_exit():
 def main():
     """Hàm main chính."""
     # Bước 1: Kiểm tra hệ thống môi trường
-    log.info("Đang kiểm tra hệ thống...")
+    log_info("Đang kiểm tra hệ thống...")
     
     if not check_python():
-        log.error("[LỖI] Python chưa được cài đặt!")
-        log.info("Vui lòng cài tại: https://www.python.org/downloads/")
+        log_error_msg("Python chưa được cài đặt!")
+        log_info("Vui lòng cài tại: https://www.python.org/downloads/")
         print()
         input("Nhấn Enter để thoát...")
         return 1
@@ -415,9 +415,9 @@ def main():
     print()
     
     if tracuu_exitcode == 0:
-        log.info("[OK] Tra cứu đã hoàn tất thành công!")
+        log_success("Tra cứu đã hoàn tất thành công!")
     else:
-        log.warning("[CẢNH BÁO] Tra cứu đã kết thúc với mã lỗi: %d", tracuu_exitcode)
+        log.warning(f"  ⚠️  Tra cứu đã kết thúc với mã lỗi: {tracuu_exitcode}")
     
     countdown_and_exit()
     return tracuu_exitcode
@@ -430,7 +430,7 @@ if __name__ == "__main__":
         print("\n\nĐã hủy bởi người dùng.")
         sys.exit(1)
     except Exception as exc:
-        log.error("[LỖI] Lỗi không mong đợi: %s", exc)
+        log_error_msg(f"Lỗi không mong đợi: {exc}")
         import traceback
         log.error(traceback.format_exc())
         print()

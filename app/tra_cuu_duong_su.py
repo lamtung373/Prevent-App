@@ -50,7 +50,8 @@ def tra_cuu_duong_su(
     
     service = DuongSuService(automation)
 
-    # Theo dõi lỗi để ghi vào ghi chú
+    # Theo dõi trạng thái từng trang
+    page_statuses = {}
     errors = []
     
     try:
@@ -58,7 +59,9 @@ def tra_cuu_duong_su(
         log_section("TRANG 1: 115.79.139.172:8080/stp/preventlistview.do")
         try:
             service.search_site1(so_can_cuoc)
+            page_statuses["Trang 1"] = "thành công"
         except Exception as e:
+            page_statuses["Trang 1"] = "thất bại"
             errors.append(f"Trang 1: {str(e)}")
 
         # Bước 2: Trang 210.245.111.1/dsnc (Site 2)
@@ -66,7 +69,9 @@ def tra_cuu_duong_su(
         switch_to_new_tab(automation.driver)
         try:
             service.search_site2(so_can_cuoc)
+            page_statuses["Trang 2"] = "thành công"
         except Exception as e:
+            page_statuses["Trang 2"] = "thất bại"
             errors.append(f"Trang 2: {str(e)}")
 
         # Bước 3: Trang hcm.cenm.vn (Site 3)
@@ -74,7 +79,9 @@ def tra_cuu_duong_su(
         switch_to_new_tab(automation.driver)
         try:
             service.search_site3(so_can_cuoc)
+            page_statuses["Trang 3"] = "thành công"
         except Exception as e:
+            page_statuses["Trang 3"] = "thất bại"
             errors.append(f"Trang 3: {str(e)}")
 
         # Bước 4: Trang 14.161.50.224/dang-nhap (Site 4)
@@ -82,16 +89,19 @@ def tra_cuu_duong_su(
         switch_to_new_tab(automation.driver)
         try:
             service.search_site4(so_can_cuoc)
+            page_statuses["Trang 4"] = "thành công"
         except Exception as e:
+            page_statuses["Trang 4"] = "thất bại"
             errors.append(f"Trang 4: {str(e)}")
 
         log.info("")
         log.info("═ HOÀN TẤT")
         log.info("Đã tra cứu đương sự với số căn cước: %s", so_can_cuoc)
         
-        # Ghi lịch sử 1 lần sau khi hoàn tất tất cả các trang
-        trang_thai = "thành công" if not errors else "lỗi"
+        # Tạo chuỗi trạng thái chi tiết cho từng trang
+        trang_thai = "; ".join([f"{page}: {status}" for page, status in page_statuses.items()])
         ghi_chu = "; ".join(errors) if errors else None
+        
         db_manager.log_search(
             loai_tra_cuu="duong_su",
             thong_tin_tra_cuu=so_can_cuoc,

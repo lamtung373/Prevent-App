@@ -96,7 +96,7 @@ class DatabaseManager:
                     os_name VARCHAR(100) NULL COMMENT 'Tên hệ điều hành',
                     os_version VARCHAR(255) NULL COMMENT 'Phiên bản hệ điều hành',
                     username VARCHAR(100) NULL COMMENT 'Tên người dùng',
-                    trang_thai VARCHAR(20) DEFAULT 'thành công' COMMENT 'Trạng thái: thành công, lỗi',
+                    trang_thai VARCHAR(255) DEFAULT 'Trang 1: thành công; Trang 2: thành công; Trang 3: thành công; Trang 4: thành công' COMMENT 'Trạng thái chi tiết từng trang: Trang 1: thành công/thất bại; Trang 2: ...',
                     ghi_chu TEXT NULL COMMENT 'Ghi chú hoặc thông báo lỗi',
                     thoi_gian TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Thời gian tra cứu',
                     INDEX idx_loai_tra_cuu (loai_tra_cuu),

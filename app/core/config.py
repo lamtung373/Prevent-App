@@ -54,6 +54,22 @@ class Config:
         """Lấy giá trị từ environment variable."""
         return os.getenv(key, default)
     
+    # Browser configuration
+    @property
+    def browser(self) -> str:
+        """
+        Trình duyệt sử dụng cho automation.
+        
+        Returns:
+            str: "edge" hoặc "chrome". Mặc định: "edge"
+        """
+        browser_type = self._get_env("BROWSER", "edge").lower().strip()
+        # Validate giá trị hợp lệ
+        if browser_type not in ("edge", "chrome"):
+            # Nếu giá trị không hợp lệ, trả về mặc định là edge
+            return "edge"
+        return browser_type
+    
     # Site 1 - Preventlistview
     @property
     def site1_username(self) -> str:

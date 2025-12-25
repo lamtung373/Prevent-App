@@ -2,7 +2,7 @@
 REM File batch đơn giản - chỉ gọi Python main.py
 REM Toàn bộ logic đã được chuyển sang app/main.py để hỗ trợ log tiếng Việt có dấu
 
-title Tra Cuu Tu Dong
+title Tra Cuu Ngan Chan
 color 0A
 
 REM Lấy đường dẫn thư mục gốc (file batch đang ở thư mục gốc)

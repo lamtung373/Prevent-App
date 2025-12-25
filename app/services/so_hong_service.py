@@ -39,18 +39,21 @@ class SoHongService:
         return re.sub(r"\s+", "", seri.strip().upper())
 
     # --- Site 1: preventlistview ---
-    def search_site1(self, seri_so: str):
+    def search_site1(self, seri_so: str) -> bool:
         """
         Tra cứu seri sổ hồng trên preventlistview (Site 1).
         
         Args:
             seri_so: Số seri sổ hồng cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
         start = log_timing_start("Trang 1")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site1_search_url,
                 username=config.site1_username,
                 password=config.site1_password,
@@ -59,7 +62,11 @@ class SoHongService:
                 login_button_selector=site1_selectors["login_button"],
                 page_name=page_name,
             )
-            self.automation.search_license_plate(
+            if not login_success:
+                log_timing_end("Trang 1 (lỗi)", start)
+                return False
+            
+            search_success = self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=seri_so,
                 search_selector=site1_selectors["search"],
@@ -67,12 +74,17 @@ class SoHongService:
                 page_name=page_name,
                 input_type="số seri sổ",
             )
-            log_timing_end("Trang 1", start)
+            if search_success:
+                log_timing_end("Trang 1", start)
+            else:
+                log_timing_end("Trang 1 (lỗi)", start)
+            return search_success
         except Exception as exc:
             log.error("[Lỗi] Trang 1: Lỗi khi tra cứu sổ hồng: %s", exc)
             log_timing_end("Trang 1 (lỗi)", start)
+            return False
 
-    def search_site2(self, thua_dat_so: str, to_ban_do_so: str, seri_so: str = None):
+    def search_site2(self, thua_dat_so: str, to_ban_do_so: str, seri_so: str = None) -> bool:
         """
         Tra cứu sổ hồng trên trang 210.245.111.1/dsnc với ô Thửa đất + Tờ bản đồ.
 
@@ -82,6 +94,9 @@ class SoHongService:
             thua_dat_so: Thửa đất số
             to_ban_do_so: Tờ bản đồ số
             seri_so: Số seri sổ hồng (optional, không dùng trong tra cứu này)
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
@@ -104,7 +119,7 @@ class SoHongService:
 
         start = log_timing_start("Trang 2")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site2_base_url,
                 username=config.site2_username,
                 password=config.site2_password,
@@ -113,6 +128,9 @@ class SoHongService:
                 login_button_selector=site2_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 2 (lỗi)", start)
+                return False
 
             td_value = _wrap_thua_dat(thua_dat_so)
             map_value = _wrap_to_ban_do(to_ban_do_so)
@@ -156,11 +174,13 @@ class SoHongService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 2", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 2: Lỗi khi tra cứu sổ hồng: %s", exc)
             log_timing_end("Trang 2 (lỗi)", start)
+            return False
 
-    def search_site3(self, seri_so: str):
+    def search_site3(self, seri_so: str) -> bool:
         """
         Tra cứu sổ hồng trên trang: https://hcm.cenm.vn/ (Trang 3)
         
@@ -168,6 +188,9 @@ class SoHongService:
         
         Args:
             seri_so: Số seri sổ hồng cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         page_name = "hcm.cenm.vn"
         start = log_timing_start("Trang 3")
@@ -332,14 +355,18 @@ class SoHongService:
                     seri_input.send_keys(Keys.RETURN)
 
                 log.info("Đã tra cứu trang: %s", page_name)
+                log_timing_end("Trang 3", start)
+                return True
             except Exception as exc:
                 log.error("[Lỗi] Trang 3 (sổ hồng): Lỗi khi tra cứu: %s", exc)
-            log_timing_end("Trang 3", start)
+                log_timing_end("Trang 3 (lỗi)", start)
+                return False
         except Exception as exc:
             log.error("[Lỗi] Trang 3 (sổ hồng): Lỗi khi đăng nhập: %s", exc)
             log_timing_end("Trang 3 (lỗi)", start)
+            return False
 
-    def search_site4(self, seri_so: str):
+    def search_site4(self, seri_so: str) -> bool:
         """
         Tra cứu sổ hồng trên trang: http://14.161.50.224/dang-nhap/ (Trang 4)
         
@@ -348,13 +375,16 @@ class SoHongService:
         
         Args:
             seri_so: Số seri sổ hồng cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
         start = log_timing_start("Trang 4")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site4_base_url,
                 username=config.site4_username,
                 password=config.site4_password,
@@ -363,6 +393,9 @@ class SoHongService:
                 login_button_selector=site4_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 4 (lỗi)", start)
+                return False
 
             # Format số seri (bỏ khoảng trắng) trước khi đưa vào URL
             seri_clean = self._format_seri_site4(seri_so)
@@ -383,7 +416,9 @@ class SoHongService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 4", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 4 (sổ hồng): Lỗi khi tra cứu: %s", exc)
             log_timing_end("Trang 4 (lỗi)", start)
+            return False
 

@@ -59,51 +59,40 @@ def tra_cuu_so_hong(
     errors = []
     
     try:
-        # Lấy cấu hình từ config
-        site1_selectors = config.site1_selectors
-
         # Bước 1: Trang preventlistview (Site 1)
         log_section("TRANG 1: 115.79.139.172:8080/stp/preventlistview.do")
-        try:
-            service.search_site1(seri_so)
-            page_statuses["Trang 1"] = "thành công"
-        except Exception as e:
-            page_statuses["Trang 1"] = "thất bại"
-            errors.append(f"Trang 1: {str(e)}")
+        success = service.search_site1(seri_so)
+        page_statuses["Trang 1"] = "thành công" if success else "thất bại"
+        if not success:
+            errors.append("Trang 1: Tra cứu thất bại")
 
         # Bước 2: Trang 210.245.111.1/dsnc (Site 2)
         log_section("TRANG 2: 210.245.111.1/dsnc")
         switch_to_new_tab(automation.driver)
-        try:
-            service.search_site2(
-                thua_dat_so=thua_dat_so or "",
-                to_ban_do_so=to_ban_do_so or "",
-                seri_so=seri_so,
-            )
-            page_statuses["Trang 2"] = "thành công"
-        except Exception as e:
-            page_statuses["Trang 2"] = "thất bại"
-            errors.append(f"Trang 2: {str(e)}")
+        success = service.search_site2(
+            thua_dat_so=thua_dat_so or "",
+            to_ban_do_so=to_ban_do_so or "",
+            seri_so=seri_so,
+        )
+        page_statuses["Trang 2"] = "thành công" if success else "thất bại"
+        if not success:
+            errors.append("Trang 2: Tra cứu thất bại")
 
         # Bước 3: Trang hcm.cenm.vn (Site 3)
         log_section("TRANG 3: hcm.cenm.vn")
         switch_to_new_tab(automation.driver)
-        try:
-            service.search_site3(seri_so)
-            page_statuses["Trang 3"] = "thành công"
-        except Exception as e:
-            page_statuses["Trang 3"] = "thất bại"
-            errors.append(f"Trang 3: {str(e)}")
+        success = service.search_site3(seri_so)
+        page_statuses["Trang 3"] = "thành công" if success else "thất bại"
+        if not success:
+            errors.append("Trang 3: Tra cứu thất bại")
 
         # Bước 4: Trang 14.161.50.224 (Site 4)
         log_section("TRANG 4: 14.161.50.224")
         switch_to_new_tab(automation.driver)
-        try:
-            service.search_site4(seri_so)
-            page_statuses["Trang 4"] = "thành công"
-        except Exception as e:
-            page_statuses["Trang 4"] = "thất bại"
-            errors.append(f"Trang 4: {str(e)}")
+        success = service.search_site4(seri_so)
+        page_statuses["Trang 4"] = "thành công" if success else "thất bại"
+        if not success:
+            errors.append("Trang 4: Tra cứu thất bại")
         
         log.info("")
         log.info("═ HOÀN TẤT")

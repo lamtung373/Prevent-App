@@ -27,18 +27,21 @@ class BienSoService:
         self.automation = automation
 
     # --- Site 1: preventlistview ---
-    def search_site1(self, plate: str):
+    def search_site1(self, plate: str) -> bool:
         """
         Tra cứu biển số trên preventlistview (Site 1).
         
         Args:
             plate: Biển số xe cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
         start = log_timing_start("Trang 1")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site1_search_url,
                 username=config.site1_username,
                 password=config.site1_password,
@@ -47,7 +50,11 @@ class BienSoService:
                 login_button_selector=site1_selectors["login_button"],
                 page_name=page_name,
             )
-            self.automation.search_license_plate(
+            if not login_success:
+                log_timing_end("Trang 1 (lỗi)", start)
+                return False
+            
+            search_success = self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=plate,
                 search_selector=site1_selectors["search"],
@@ -55,10 +62,15 @@ class BienSoService:
                 page_name=page_name,
                 input_type="biển số",
             )
-            log_timing_end("Trang 1", start)
+            if search_success:
+                log_timing_end("Trang 1", start)
+            else:
+                log_timing_end("Trang 1 (lỗi)", start)
+            return search_success
         except Exception as exc:
             log.error("[Lỗi] Trang 1: Lỗi khi tra cứu biển số: %s", exc)
             log_timing_end("Trang 1 (lỗi)", start)
+            return False
     
     @staticmethod
     def _split_plate_site2(plate: str):
@@ -125,19 +137,22 @@ class BienSoService:
         segments = prefix_groups + suffix_groups
         return f"%{'%'.join(segments)}%"
 
-    def search_site2(self, plate: str):
+    def search_site2(self, plate: str) -> bool:
         """
         Tra cứu trên trang: http://210.245.111.1/dsnc/Default.aspx.
         
         Args:
             plate: Biển số xe cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
 
         start = log_timing_start("Trang 2")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site2_base_url,
                 username=config.site2_username,
                 password=config.site2_password,
@@ -146,6 +161,9 @@ class BienSoService:
                 login_button_selector=site2_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 2 (lỗi)", start)
+                return False
 
             try:
                 radio_ds = self.automation.wait.until(EC.element_to_be_clickable((By.ID, "rblTableType_1")))
@@ -171,11 +189,13 @@ class BienSoService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 2", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 2: Lỗi khi tra cứu: %s", exc)
             log_timing_end("Trang 2 (lỗi)", start)
+            return False
 
-    def search_site3(self, plate: str):
+    def search_site3(self, plate: str) -> bool:
         """
         Tra cứu trên trang: https://hcm.cenm.vn/ (Trang 3)
         
@@ -183,6 +203,9 @@ class BienSoService:
         
         Args:
             plate: Biển số xe cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         page_name = "hcm.cenm.vn"
         start = log_timing_start("Trang 3")
@@ -379,14 +402,18 @@ class BienSoService:
                     so_dk_field.send_keys(Keys.RETURN)
 
                 log.info("Đã tra cứu trang: %s", page_name)
+                log_timing_end("Trang 3", start)
+                return True
             except Exception as exc:
                 log.error("[Lỗi] Trang 3: Lỗi khi tra cứu: %s", exc)
-            log_timing_end("Trang 3", start)
+                log_timing_end("Trang 3 (lỗi)", start)
+                return False
         except Exception as exc:
             log.error("[Lỗi] Trang 3: Lỗi khi đăng nhập: %s", exc)
             log_timing_end("Trang 3 (lỗi)", start)
+            return False
 
-    def search_site4(self, plate: str):
+    def search_site4(self, plate: str) -> bool:
         """
         Tra cứu trên trang: http://14.161.50.224/dang-nhap/ (Trang 4)
         
@@ -395,13 +422,16 @@ class BienSoService:
         
         Args:
             plate: Biển số xe cần tra cứu
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
         start = log_timing_start("Trang 4")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site4_base_url,
                 username=config.site4_username,
                 password=config.site4_password,
@@ -410,6 +440,9 @@ class BienSoService:
                 login_button_selector=site4_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 4 (lỗi)", start)
+                return False
 
             # Điều hướng trực tiếp đến URL tra cứu với tham số option3 và keyword
             search_url = f"http://14.161.50.224/tra-cuu/?option3=1&keyword={quote_plus(plate)}"
@@ -427,7 +460,9 @@ class BienSoService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 4", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 4: Lỗi khi tra cứu: %s", exc)
             log_timing_end("Trang 4 (lỗi)", start)
+            return False
 

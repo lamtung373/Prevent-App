@@ -8,69 +8,128 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.edge.service import Service as EdgeService
+from selenium.webdriver.edge.options import Options as EdgeOptions
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.microsoft import EdgeChromiumDriverManager
 
 from .logging_utils import log
+from .config import config
 
 
 class WebAutomation:
     """Class chính để tự động hóa trình duyệt web."""
     
-    def __init__(self, headless: bool = False):
+    def __init__(self, headless: bool = False, browser: Optional[str] = None):
         """
         Khởi tạo trình duyệt.
 
         Args:
             headless: Nếu True, chạy trình duyệt ở chế độ ẩn (không hiển thị cửa sổ)
+            browser: Loại trình duyệt ("chrome" hoặc "edge"). Nếu None, đọc từ config
         """
-        chrome_options = Options()
-        if headless:
-            chrome_options.add_argument("--headless")
+        # Xác định loại trình duyệt (ưu tiên tham số, sau đó config)
+        browser_type = (browser or config.browser).lower().strip()
         
-        # Tối ưu tốc độ khởi động Chrome
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-plugins")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-background-networking")
-        chrome_options.add_argument("--disable-background-timer-throttling")
-        chrome_options.add_argument("--disable-renderer-backgrounding")
-        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+        # Khởi tạo driver tương ứng với error handling và fallback
+        self.driver = None
+        
+        if browser_type == "edge":
+            log.info("Đang khởi tạo trình duyệt: Microsoft Edge")
+            try:
+                self.driver = self._init_edge_driver(headless)
+            except Exception as e:
+                log.warning("Không thể khởi tạo Edge: %s", str(e))
+                log.info("Đang chuyển sang Chrome...")
+                try:
+                    self.driver = self._init_chrome_driver(headless)
+                except Exception as chrome_error:
+                    log.error("Không thể khởi tạo Chrome: %s", str(chrome_error))
+                    raise RuntimeError(
+                        "Không thể khởi tạo trình duyệt. Vui lòng kiểm tra:\n"
+                        "1. Kết nối mạng (để tải driver nếu cần)\n"
+                        "2. Chrome hoặc Edge đã được cài đặt\n"
+                        "3. Firewall không chặn kết nối\n"
+                        "4. Thử đặt BROWSER=chrome trong file .env"
+                    )
+        else:
+            log.info("Đang khởi tạo trình duyệt: Google Chrome")
+            try:
+                self.driver = self._init_chrome_driver(headless)
+            except Exception as e:
+                log.warning("Không thể khởi tạo Chrome: %s", str(e))
+                log.info("Đang chuyển sang Edge...")
+                try:
+                    self.driver = self._init_edge_driver(headless)
+                except Exception as edge_error:
+                    log.error("Không thể khởi tạo Edge: %s", str(edge_error))
+                    raise RuntimeError(
+                        "Không thể khởi tạo trình duyệt. Vui lòng kiểm tra:\n"
+                        "1. Kết nối mạng (để tải driver nếu cần)\n"
+                        "2. Chrome hoặc Edge đã được cài đặt\n"
+                        "3. Firewall không chặn kết nối\n"
+                        "4. Thử đặt BROWSER=edge trong file .env"
+                    )
+        
+        # Cấu hình chung cho cả hai trình duyệt
+        self.driver.implicitly_wait(0.3)
+        self.wait = WebDriverWait(self.driver, 1.5)
+    
+    def _setup_common_options(self, options, headless: bool):
+        """
+        Thiết lập các options chung cho cả Chrome và Edge.
+        
+        Args:
+            options: ChromeOptions hoặc EdgeOptions
+            headless: Chạy ở chế độ headless
+        """
+        if headless:
+            options.add_argument("--headless")
+        
+        # Tối ưu tốc độ khởi động
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-plugins")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--disable-backgrounding-occluded-windows")
         
         # Thêm các options để tăng tốc khởi động
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--disable-ipc-flooding-protection")
-        chrome_options.add_argument("--disable-hang-monitor")
-        chrome_options.add_argument("--disable-prompt-on-repost")
-        chrome_options.add_argument("--disable-domain-reliability")
-        chrome_options.add_argument("--disable-component-update")
-        chrome_options.add_argument("--disable-default-apps")
-        chrome_options.add_argument("--disable-sync")
-        chrome_options.add_argument("--disable-translate")
-        chrome_options.add_argument("--disable-features=TranslateUI")
-        chrome_options.add_argument("--disable-features=BlinkGenPropertyTrees")
-        chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
-        chrome_options.add_argument("--disable-client-side-phishing-detection")
-        chrome_options.add_argument("--disable-component-extensions-with-background-pages")
-        chrome_options.add_argument("--disable-breakpad")
-        chrome_options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-ipc-flooding-protection")
+        options.add_argument("--disable-hang-monitor")
+        options.add_argument("--disable-prompt-on-repost")
+        options.add_argument("--disable-domain-reliability")
+        options.add_argument("--disable-component-update")
+        options.add_argument("--disable-default-apps")
+        options.add_argument("--disable-sync")
+        options.add_argument("--disable-translate")
+        options.add_argument("--disable-features=TranslateUI")
+        options.add_argument("--disable-features=BlinkGenPropertyTrees")
+        options.add_argument("--disable-features=IsolateOrigins,site-per-process")
+        options.add_argument("--disable-client-side-phishing-detection")
+        options.add_argument("--disable-component-extensions-with-background-pages")
+        options.add_argument("--disable-breakpad")
+        options.add_argument("--disable-crash-reporter")
         
         # Tối ưu page load: chỉ disable DNS prefetch (giữ ảnh để hiển thị bình thường)
-        chrome_options.add_argument("--dns-prefetch-disable")
+        options.add_argument("--dns-prefetch-disable")
         
         # Tối ưu page load strategy
-        chrome_options.page_load_strategy = "eager"  # Không đợi tất cả resources load
+        options.page_load_strategy = "eager"  # Không đợi tất cả resources load
         
         # Giữ trình duyệt mở sau khi script kết thúc
-        chrome_options.add_experimental_option("detach", True)
-        chrome_options.add_experimental_option(
+        options.add_experimental_option("detach", True)
+        options.add_experimental_option(
             "excludeSwitches", ["enable-automation", "enable-logging"]
         )
-        chrome_options.add_experimental_option("useAutomationExtension", False)
+        options.add_experimental_option("useAutomationExtension", False)
         
         # Prefs để tắt notifications (giữ nguyên giao diện trang web)
         prefs = {
@@ -78,15 +137,65 @@ class WebAutomation:
                 "notifications": 2,  # Block notifications
             }
         }
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        # Cache ChromeDriver để tránh tải lại mỗi lần
-        service = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        # Giảm implicit wait để tăng tốc (0.3s đủ nhanh cho các element phổ biến)
-        self.driver.implicitly_wait(0.3)
-        # Giảm WebDriverWait timeout từ 2s → 1.5s (đa số page load nhanh)
-        self.wait = WebDriverWait(self.driver, 1.5)
+        options.add_experimental_option("prefs", prefs)
+        
+        return options
+    
+    def _init_chrome_driver(self, headless: bool):
+        """
+        Khởi tạo Chrome WebDriver.
+        
+        Args:
+            headless: Chạy ở chế độ headless
+            
+        Returns:
+            Chrome WebDriver instance
+        """
+        chrome_options = ChromeOptions()
+        chrome_options = self._setup_common_options(chrome_options, headless)
+        
+        # Thử sử dụng Chrome driver đã cài sẵn trong hệ thống trước (không cần internet)
+        try:
+            # Thử không dùng service (dùng driver mặc định của hệ thống)
+            return webdriver.Chrome(options=chrome_options)
+        except Exception:
+            # Nếu không có driver mặc định, thử download từ webdriver-manager
+            try:
+                log.info("Đang tải ChromeDriver từ internet...")
+                service = ChromeService(ChromeDriverManager().install())
+                return webdriver.Chrome(service=service, options=chrome_options)
+            except Exception as e:
+                # Log lỗi chi tiết để debug
+                log.error("Chi tiết lỗi Chrome: %s", str(e))
+                raise
+    
+    def _init_edge_driver(self, headless: bool):
+        """
+        Khởi tạo Edge WebDriver.
+        
+        Args:
+            headless: Chạy ở chế độ headless
+            
+        Returns:
+            Edge WebDriver instance
+        """
+        edge_options = EdgeOptions()
+        edge_options = self._setup_common_options(edge_options, headless)
+        
+        # Thử sử dụng Edge driver đã cài sẵn trong hệ thống trước (không cần internet)
+        try:
+            # Thử không dùng service (dùng driver mặc định của hệ thống)
+            return webdriver.Edge(options=edge_options)
+        except Exception:
+            # Nếu không có driver mặc định, thử download từ webdriver-manager
+            try:
+                log.info("Đang tải EdgeDriver từ internet...")
+                service = EdgeService(EdgeChromiumDriverManager().install())
+                return webdriver.Edge(service=service, options=edge_options)
+            except Exception as e:
+                # Log lỗi chi tiết để debug
+                log.error("Chi tiết lỗi Edge: %s", str(e))
+                raise
 
     def login(
         self,

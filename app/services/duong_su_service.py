@@ -26,18 +26,21 @@ class DuongSuService:
         self.automation = automation
 
     # --- Site 1: preventlistview ---
-    def search_site1(self, so_can_cuoc: str):
+    def search_site1(self, so_can_cuoc: str) -> bool:
         """
         Tra cứu đương sự bằng số căn cước trên preventlistview (Site 1).
         
         Args:
             so_can_cuoc: Số căn cước công dân hoặc số căn cước
+            
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site1_selectors = config.site1_selectors
         page_name = "115.79.139.172:8080/stp/preventlistview.do"
         start = log_timing_start("Trang 1")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site1_search_url,
                 username=config.site1_username,
                 password=config.site1_password,
@@ -46,7 +49,11 @@ class DuongSuService:
                 login_button_selector=site1_selectors["login_button"],
                 page_name=page_name,
             )
-            self.automation.search_license_plate(
+            if not login_success:
+                log_timing_end("Trang 1 (lỗi)", start)
+                return False
+            
+            search_success = self.automation.search_license_plate(
                 search_url=config.site1_search_url,
                 license_plate=so_can_cuoc,
                 search_selector=site1_selectors["search"],
@@ -54,24 +61,32 @@ class DuongSuService:
                 page_name=page_name,
                 input_type="số căn cước",
             )
-            log_timing_end("Trang 1", start)
+            if search_success:
+                log_timing_end("Trang 1", start)
+            else:
+                log_timing_end("Trang 1 (lỗi)", start)
+            return search_success
         except Exception as exc:
             log.error("[Lỗi] Trang 1: Lỗi khi tra cứu đương sự: %s", exc)
             log_timing_end("Trang 1 (lỗi)", start)
+            return False
 
     # --- Site 2: 210.245.111.1/dsnc ---
-    def search_site2(self, so_can_cuoc: str):
+    def search_site2(self, so_can_cuoc: str) -> bool:
         """
         Tra cứu đương sự trên trang: http://210.245.111.1/dsnc/Default.aspx.
         
         Chọn radio button rblTableType_2, nhập số căn cước vào txtP2, rồi submit.
+        
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site2_selectors = config.site2_selectors
         page_name = "210.245.111.1/dsnc"
 
         start = log_timing_start("Trang 2")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site2_base_url,
                 username=config.site2_username,
                 password=config.site2_password,
@@ -80,6 +95,9 @@ class DuongSuService:
                 login_button_selector=site2_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 2 (lỗi)", start)
+                return False
 
             # Chọn radio button rblTableType_2 (đương sự)
             try:
@@ -104,16 +122,21 @@ class DuongSuService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 2", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 2: Lỗi khi tra cứu đương sự: %s", exc)
             log_timing_end("Trang 2 (lỗi)", start)
+            return False
 
     # --- Site 3: hcm.cenm.vn ---
-    def search_site3(self, so_can_cuoc: str):
+    def search_site3(self, so_can_cuoc: str) -> bool:
         """
         Tra cứu đương sự trên trang: https://hcm.cenm.vn/ (Trang 3)
         
         Chuẩn bị tra cứu: login -> mở mục Đương sự -> nhập số căn cước vào so_cmt.
+        
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         page_name = "hcm.cenm.vn"
         start = log_timing_start("Trang 3")
@@ -295,27 +318,34 @@ class DuongSuService:
                     so_cmt_field.send_keys(Keys.RETURN)
 
                 log.info("Đã tra cứu trang: %s", page_name)
+                log_timing_end("Trang 3", start)
+                return True
             except Exception as exc:
                 log.error("[Lỗi] Trang 3: Lỗi khi tra cứu đương sự: %s", exc)
-            log_timing_end("Trang 3", start)
+                log_timing_end("Trang 3 (lỗi)", start)
+                return False
         except Exception as exc:
             log.error("[Lỗi] Trang 3: Lỗi khi đăng nhập: %s", exc)
             log_timing_end("Trang 3 (lỗi)", start)
+            return False
 
     # --- Site 4: 14.161.50.224 ---
-    def search_site4(self, so_can_cuoc: str):
+    def search_site4(self, so_can_cuoc: str) -> bool:
         """
         Tra cứu đương sự trên trang: http://14.161.50.224/dang-nhap/ (Trang 4)
         
         Sau khi đăng nhập, điều hướng trực tiếp đến URL với tham số:
         http://14.161.50.224/tra-cuu/?option2=1&keyword={so_can_cuoc}
+        
+        Returns:
+            True nếu thành công, False nếu thất bại
         """
         site4_selectors = config.site4_selectors
         page_name = "14.161.50.224"
 
         start = log_timing_start("Trang 4")
         try:
-            self.automation.login(
+            login_success = self.automation.login(
                 url=config.site4_base_url,
                 username=config.site4_username,
                 password=config.site4_password,
@@ -324,6 +354,9 @@ class DuongSuService:
                 login_button_selector=site4_selectors["login_button"],
                 page_name=page_name,
             )
+            if not login_success:
+                log_timing_end("Trang 4 (lỗi)", start)
+                return False
 
             # Điều hướng trực tiếp đến URL tra cứu với tham số option2 và keyword
             search_url = f"http://14.161.50.224/tra-cuu/?option2=1&keyword={quote_plus(so_can_cuoc)}"
@@ -341,7 +374,9 @@ class DuongSuService:
 
             log.info("Đã tra cứu trang: %s", page_name)
             log_timing_end("Trang 4", start)
+            return True
         except Exception as exc:
             log.error("[Lỗi] Trang 4: Lỗi khi tra cứu đương sự: %s", exc)
             log_timing_end("Trang 4 (lỗi)", start)
+            return False
 

@@ -10,16 +10,24 @@ from mysql.connector import Error, pooling
 from mysql.connector.pooling import MySQLConnectionPool
 
 from core.config import config
-from core.logging_utils import log, log_success, log_timing_start, log_timing_end
+from core.logging_utils import log, log_success, log_info, log_timing_start, log_timing_end
 from core.system_info import get_device_name, get_ip_address, get_system_info
 
 
 class DatabaseManager:
-    """Quản lý kết nối và thao tác với MySQL database."""
+    """
+    Quản lý kết nối và thao tác với MySQL database.
+    
+    Thiết kế theo nguyên tắc Graceful Degradation:
+    - Nếu database không khả dụng, ứng dụng vẫn tiếp tục hoạt động
+    - Log tra cứu sẽ được lưu vào offline queue và đồng bộ sau
+    - Có thể retry kết nối sau khi khởi tạo thất bại
+    """
     
     _instance = None
     _pool: Optional[MySQLConnectionPool] = None
     _initialized = False
+    _connection_available = False  # Flag theo dõi trạng thái kết nối
     
     def __new__(cls):
         if cls._instance is None:
@@ -29,7 +37,11 @@ class DatabaseManager:
     def __init__(self):
         if not DatabaseManager._initialized:
             self._init_pool()
-            self._ensure_table_exists()
+            # Chỉ kiểm tra/tạo bảng khi có connection
+            if DatabaseManager._connection_available:
+                self._ensure_table_exists()
+                # Đồng bộ offline queue nếu có pending records
+                self._sync_offline_queue_on_startup()
             DatabaseManager._initialized = True
     
     def _init_pool(self):
@@ -51,16 +63,47 @@ class DatabaseManager:
             }
             
             DatabaseManager._pool = mysql.connector.pooling.MySQLConnectionPool(**pool_config)
+            DatabaseManager._connection_available = True
             # Log được xử lý ở tầng cao hơn (trong tra_cuu_*.py)
         except Error as e:
-            log.error("  ✗ Lỗi khi khởi tạo connection pool: %s", e)
+            log.warning("  ⚠ Database không khả dụng: %s", e)
+            log.warning("  ⚠ Ứng dụng sẽ chạy ở chế độ offline (không ghi log tra cứu)")
             DatabaseManager._pool = None
+            DatabaseManager._connection_available = False
     
     def _get_connection(self):
         """Lấy connection từ pool."""
-        if DatabaseManager._pool is None:
-            raise ConnectionError("Connection pool chưa được khởi tạo")
-        return DatabaseManager._pool.get_connection()
+        if not DatabaseManager._connection_available or DatabaseManager._pool is None:
+            return None
+        try:
+            return DatabaseManager._pool.get_connection()
+        except Error as e:
+            log.warning("  ⚠ Không thể lấy connection: %s", e)
+            return None
+    
+    def is_available(self) -> bool:
+        """Kiểm tra database có khả dụng không."""
+        return DatabaseManager._connection_available
+    
+    def retry_connection(self) -> bool:
+        """
+        Thử kết nối lại database sau khi khởi tạo thất bại.
+        
+        Returns:
+            True nếu kết nối thành công, False nếu thất bại
+        """
+        log.info("  ↻ Đang thử kết nối lại database...")
+        DatabaseManager._connection_available = False
+        DatabaseManager._pool = None
+        self._init_pool()
+        
+        if DatabaseManager._connection_available:
+            self._ensure_table_exists()
+            log.info("  ✓ Kết nối database thành công")
+            # Đồng bộ offline queue nếu có
+            self.sync_offline_queue()
+            return True
+        return False
     
     def _ensure_table_exists(self):
         """Kiểm tra và tạo bảng tra_cuu_history nếu chưa tồn tại."""
@@ -68,6 +111,8 @@ class DatabaseManager:
         cursor = None
         try:
             connection = self._get_connection()
+            if connection is None:
+                return  # Không có connection, bỏ qua
             cursor = connection.cursor()
             
             # Kiểm tra bảng đã tồn tại chưa
@@ -132,6 +177,8 @@ class DatabaseManager:
         """
         Ghi lại lịch sử tra cứu vào database (1 bản ghi cho mỗi lần tra cứu).
         
+        Nếu database offline, log sẽ được lưu vào offline queue và đồng bộ sau.
+        
         Args:
             loai_tra_cuu: Loại tra cứu ('bien_so', 'so_hong', 'duong_su')
             thong_tin_tra_cuu: Thông tin tra cứu (biển số, số seri, số căn cước)
@@ -141,18 +188,47 @@ class DatabaseManager:
             ghi_chu: Ghi chú hoặc thông báo lỗi
             
         Returns:
-            True nếu ghi thành công, False nếu có lỗi
+            True nếu ghi thành công (hoặc đã lưu vào offline queue), False nếu có lỗi
         """
+        # Lấy thông tin hệ thống trước (cần cho cả online và offline)
+        system_info = get_system_info()
+        device_name = get_device_name()
+        ip_address = get_ip_address()
+        
+        # Tạo record data
+        record_data = {
+            'loai_tra_cuu': loai_tra_cuu,
+            'thong_tin_tra_cuu': thong_tin_tra_cuu,
+            'thua_dat': thua_dat,
+            'to_ban_do': to_ban_do,
+            'device_name': device_name,
+            'ip_address': ip_address,
+            'hostname': system_info.get('hostname'),
+            'mac_address': system_info.get('mac_address'),
+            'os_name': system_info.get('os_name'),
+            'os_version': system_info.get('os_version'),
+            'username': system_info.get('username'),
+            'trang_thai': trang_thai,
+            'ghi_chu': ghi_chu,
+        }
+        
+        # Kiểm tra database có khả dụng không
+        if not self.is_available():
+            # Import ở đây để tránh circular import
+            from core.offline_queue import offline_queue
+            log_info("  📥 Database offline - Lưu vào hàng đợi offline")
+            return offline_queue.add(record_data)
+        
         start_time = log_timing_start("Ghi database")
         connection = None
         cursor = None
         try:
-            # Lấy thông tin hệ thống
-            system_info = get_system_info()
-            device_name = get_device_name()
-            ip_address = get_ip_address()
-            
             connection = self._get_connection()
+            if connection is None:
+                # Fallback to offline queue
+                from core.offline_queue import offline_queue
+                log_timing_end("Ghi database (offline)", start_time)
+                return offline_queue.add(record_data)
             cursor = connection.cursor()
             
             insert_sql = """
@@ -164,19 +240,19 @@ class DatabaseManager:
             """
             
             values = (
-                loai_tra_cuu,
-                thong_tin_tra_cuu,
-                thua_dat,
-                to_ban_do,
-                device_name,
-                ip_address,
-                system_info.get('hostname'),
-                system_info.get('mac_address'),
-                system_info.get('os_name'),
-                system_info.get('os_version'),
-                system_info.get('username'),
-                trang_thai,
-                ghi_chu,
+                record_data['loai_tra_cuu'],
+                record_data['thong_tin_tra_cuu'],
+                record_data['thua_dat'],
+                record_data['to_ban_do'],
+                record_data['device_name'],
+                record_data['ip_address'],
+                record_data['hostname'],
+                record_data['mac_address'],
+                record_data['os_name'],
+                record_data['os_version'],
+                record_data['username'],
+                record_data['trang_thai'],
+                record_data['ghi_chu'],
             )
             
             cursor.execute(insert_sql, values)
@@ -205,21 +281,163 @@ class DatabaseManager:
         
         Args:
             silent: Nếu True, không log kết quả (default)
+            
+        Returns:
+            True nếu kết nối thành công, False nếu không
         """
+        # Kiểm tra nhanh trạng thái
+        if not self.is_available():
+            if not silent:
+                log.warning("  ⚠ Database không khả dụng")
+            return False
+        
         connection = None
         try:
             connection = self._get_connection()
+            if connection is None:
+                return False
             if connection.is_connected():
                 if not silent:
                     log_success("Kết nối database thành công")
                 return True
             return False
         except Error as e:
-            log.error("  ✗ Lỗi kết nối database: %s", e)
+            if not silent:
+                log.error("  ✗ Lỗi kết nối database: %s", e)
             return False
         finally:
             if connection:
                 connection.close()
+    
+    def _sync_offline_queue_on_startup(self):
+        """
+        Đồng bộ offline queue khi khởi tạo (silent mode).
+        Chỉ log nếu có records được đồng bộ.
+        """
+        from core.offline_queue import offline_queue
+        
+        if not offline_queue.has_pending():
+            return
+        
+        pending_count = offline_queue.count()
+        log_info(f"  📤 Phát hiện {pending_count} log offline đang chờ đồng bộ...")
+        self.sync_offline_queue()
+    
+    def sync_offline_queue(self) -> tuple[int, int]:
+        """
+        Đồng bộ tất cả records từ offline queue lên database.
+        
+        Returns:
+            Tuple (synced_count, failed_count): số records đồng bộ thành công và thất bại
+        """
+        from core.offline_queue import offline_queue
+        
+        if not self.is_available():
+            log.warning("  ⚠ Không thể đồng bộ - Database không khả dụng")
+            return (0, 0)
+        
+        pending_records = offline_queue.get_all()
+        if not pending_records:
+            return (0, 0)
+        
+        synced_count = 0
+        failed_count = 0
+        
+        log_info(f"  📤 Đang đồng bộ {len(pending_records)} log từ offline queue...")
+        
+        for record in pending_records:
+            if self._insert_record_to_db(record):
+                synced_count += 1
+            else:
+                failed_count += 1
+                # Dừng lại nếu gặp lỗi (giữ thứ tự)
+                break
+        
+        # Xóa các records đã đồng bộ thành công
+        if synced_count > 0:
+            offline_queue.remove_synced(synced_count)
+            log_success(f"  ✓ Đã đồng bộ {synced_count}/{len(pending_records)} log lên database")
+        
+        if failed_count > 0:
+            remaining = offline_queue.count()
+            log.warning(f"  ⚠ Còn {remaining} log chưa đồng bộ (sẽ thử lại sau)")
+        
+        return (synced_count, failed_count)
+    
+    def _insert_record_to_db(self, record: Dict[str, Any]) -> bool:
+        """
+        Insert một record từ offline queue vào database.
+        
+        Args:
+            record: Dict chứa thông tin tra cứu
+            
+        Returns:
+            True nếu insert thành công, False nếu có lỗi
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = self._get_connection()
+            if connection is None:
+                return False
+            cursor = connection.cursor()
+            
+            insert_sql = """
+            INSERT INTO tra_cuu_history 
+            (loai_tra_cuu, thong_tin_tra_cuu, thua_dat, to_ban_do, 
+             thiet_bi, ip_address, hostname, mac_address, os_name, os_version, username,
+             trang_thai, ghi_chu, thoi_gian)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            """
+            
+            values = (
+                record.get('loai_tra_cuu'),
+                record.get('thong_tin_tra_cuu'),
+                record.get('thua_dat'),
+                record.get('to_ban_do'),
+                record.get('device_name'),
+                record.get('ip_address'),
+                record.get('hostname'),
+                record.get('mac_address'),
+                record.get('os_name'),
+                record.get('os_version'),
+                record.get('username'),
+                record.get('trang_thai'),
+                record.get('ghi_chu'),
+            )
+            
+            cursor.execute(insert_sql, values)
+            connection.commit()
+            return True
+            
+        except Error as e:
+            log.debug("  ✗ Lỗi khi đồng bộ record: %s", e)
+            if connection:
+                try:
+                    connection.rollback()
+                except Exception:
+                    pass
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+    
+    def get_offline_queue_status(self) -> Dict[str, Any]:
+        """
+        Lấy trạng thái offline queue.
+        
+        Returns:
+            Dict chứa thông tin về queue (pending_count, queue_file_path)
+        """
+        from core.offline_queue import offline_queue
+        
+        return {
+            'pending_count': offline_queue.count(),
+            'has_pending': offline_queue.has_pending(),
+            'queue_file_path': offline_queue.get_queue_file_path(),
+        }
 
 
 # Singleton instance

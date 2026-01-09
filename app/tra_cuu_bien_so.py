@@ -50,8 +50,18 @@ def tra_cuu_bien_so(
     
     # BƯỚC 2: Khởi tạo hệ thống
     log_header("Khởi tạo hệ thống", tag="SYSTEM")
-    log_step("Khởi tạo database...")
-    db_manager.test_connection(silent=True)
+    
+    # Kiểm tra kết nối database
+    log_step("Kiểm tra database...")
+    if db_manager.is_available():
+        log_success("Database đã kết nối")
+        # Hiển thị thông tin offline queue nếu có
+        queue_status = db_manager.get_offline_queue_status()
+        if queue_status['has_pending']:
+            log_info(f"  📤 Đang đồng bộ {queue_status['pending_count']} log offline...")
+    else:
+        log_info("⚠ Database offline - Log sẽ được lưu local và đồng bộ sau")
+    
     log_step("Kiểm tra cập nhật (chế độ nền)...")
     init_update_manager()
     
